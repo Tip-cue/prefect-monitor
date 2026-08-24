@@ -941,6 +941,11 @@ function syncControls() {
   // An end only shows when it is a fixed one: "ending now" has no timestamp to put there.
   const endsAt = active || state.range.to === 'now' ? null : parseTimeExpression(state.range.to);
   $('#rangeTo').value = endsAt === null ? '' : formatLocal(endsAt);
+
+  // Empty means "wherever the range currently reaches", so say where that is rather than
+  // showing a date baked into the markup.
+  $('#rangeFrom').placeholder = formatLocal(fieldInstant('rangeFrom'));
+  $('#rangeTo').placeholder = formatLocal(fieldInstant('rangeTo'));
   document.querySelectorAll('#startAnchors button').forEach((button) => {
     button.classList.toggle('on',
       startsAt !== null && startsAt === anchorStart(Number(button.dataset.days)));
@@ -1058,6 +1063,23 @@ function applyRange({ startMs, endMs, durationMs, untilNow = false, anchor = 'en
 }
 
 /**
+ * The instant a timestamp field stands for: what it holds, or — while it is empty, which is
+ * what a relative range leaves it — where that range currently starts or ends.
+ *
+ * So the calendar opens on the range you are looking at rather than on today, and an empty
+ * field hints at the boundary it would replace rather than at a date typed into the markup
+ * once and left there.
+ */
+function fieldInstant(field) {
+  const typed = parseTimeExpression($(`#${field}`).value.trim());
+  if (typed !== null) return typed;
+
+  const resolved = resolveRange(state.range);
+  if (!resolved) return Date.now();
+  return field === 'rangeFrom' ? resolved.from : resolved.to;
+}
+
+/**
  * Which field the calendar is editing, the month it is showing, and the time it will apply.
  *
  * The time lives here rather than being read back out of the inputs, because redrawing —
@@ -1076,11 +1098,9 @@ let calendar = null;
 function drawCalendar() {
   if (!calendar) return;
   const { field, year, month, hours, minutes } = calendar;
-  const selected = parseTimeExpression($(`#${field}`).value.trim());
-  const on = selected === null ? null : partsOf(selected);
+  const on = partsOf(fieldInstant(field));
 
-  const isSelected = (day) => on !== null
-    && on.year === year && on.month === month && on.day === day;
+  const isSelected = (day) => on.year === year && on.month === month && on.day === day;
 
   const rows = monthGrid(year, month).map((week) => `<tr>${week.map((day) => (
     day === null
@@ -1108,7 +1128,7 @@ function drawCalendar() {
 
 /** Opens the calendar under `field`, on the month that field is already showing. */
 function openCalendar(field) {
-  const at = partsOf(parseTimeExpression($(`#${field}`).value.trim()) ?? Date.now());
+  const at = partsOf(fieldInstant(field));
   calendar = { field, year: at.year, month: at.month, hours: at.hours, minutes: at.minutes };
 
   const host = document.querySelector(`.calendarHost[data-field="${field}"]`);

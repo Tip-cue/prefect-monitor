@@ -1303,12 +1303,12 @@ test('app.js still defines the functions it is wired from', () => {
     'applyCalendar', 'applyRange', 'asOfNotice', 'batchOfChain', 'buildCalendar',
     'buildRangePicker', 'buildRefreshControl', 'clearIsolation', 'closeCalendar',
     'closeModal', 'closeRangePanel', 'draw', 'drawCalendar', 'drawZoomBar', 'drawnFrom',
-    'drawnWindow', 'highlightLinks', 'init', 'isolateChain', 'linkNotice', 'load',
-    'openCalendar', 'openModal', 'openRangePanel', 'openRunInPrefect', 'prefectLink',
-    'rangeSpan', 'readUrl', 'restoreModalFromUrl', 'runNotice', 'setMode', 'setRange',
-    'setRefresh', 'setZoom', 'showChainWindow', 'showError', 'showRangeError',
-    'showSubflows', 'syncControls', 'toggleStateFilter', 'trackWidth', 'typedTime',
-    'withAssumedLinks', 'writeUrl',
+    'drawnWindow', 'fieldInstant', 'highlightLinks', 'init', 'isolateChain',
+    'linkNotice', 'load', 'openCalendar', 'openModal', 'openRangePanel',
+    'openRunInPrefect', 'prefectLink', 'rangeSpan', 'readUrl', 'restoreModalFromUrl',
+    'runNotice', 'setMode', 'setRange', 'setRefresh', 'setZoom', 'showChainWindow',
+    'showError', 'showRangeError', 'showSubflows', 'syncControls', 'toggleStateFilter',
+    'trackWidth', 'typedTime', 'withAssumedLinks', 'writeUrl',
   ]);
 });
 
