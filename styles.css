@@ -1,0 +1,644 @@
+:root {
+  --bg: #0f1419;
+  --panel: #161d26;
+  --ink: #d7dee8;
+  --muted: #8494a8;
+  --line: #232d3a;
+  --accent: #4e82fe;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* ------------------------------- header bar ------------------------------- */
+
+header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+
+h1 {
+  margin: 0 10px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon.chevron {
+  width: 12px;
+  height: 12px;
+  opacity: 0.7;
+}
+
+input,
+button {
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+}
+
+button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+button.on {
+  border-color: var(--accent);
+  background: #1b2a4a;
+  color: #fff;
+}
+
+#apiUrl {
+  width: 250px;
+}
+
+/* Hidden when the API is same-origin — there is nothing to point it at. */
+#apiUrl[hidden] {
+  display: none;
+}
+
+.sep {
+  width: 1px;
+  height: 22px;
+  margin: 0 4px;
+  background: var(--line);
+}
+
+/* ----------------------------- time range picker -------------------------- */
+
+#rangePicker {
+  position: relative;
+}
+
+#rangeButton {
+  /* Sized to its label: a fixed minimum left dead space after "Last 30 minutes". */
+  white-space: nowrap;
+}
+
+#rangePanel {
+  position: absolute;
+  top: calc(100% + 6px);
+  /* `left` is set when the panel opens (see popoverOffset): three columns are wider than
+     the button, so whether they overflow the left or the right edge depends on where the
+     button has ended up — anchoring to either side alone clipped one of them. */
+  left: 0;
+  max-width: calc(100vw - 28px);
+  z-index: 30;
+  display: flex;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 55%);
+}
+
+#rangePanel[hidden] {
+  display: none;
+}
+
+/* Three columns: the last N, a start point, a duration. */
+.rangeColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Wide enough for "2026-08-20 00:00" in the start field, plus its padding and border:
+     the field stretches to the column, so this is what stops the text being clipped. */
+  min-width: 170px;
+}
+
+.rangeColumn + .rangeColumn {
+  padding-left: 14px;
+  border-left: 1px solid var(--line);
+}
+
+.rangeColumn h2 {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rangeColumn label {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.rangeColumn p {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+#quickRanges,
+#startAnchors {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Durations are short labels: a grid reads faster than a column of them. */
+#durations {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+}
+
+#durations button {
+  justify-content: center;
+}
+
+/* The alternative to a fixed duration: run the window on from the chosen start. */
+#untilNow {
+  margin-top: 4px;
+  justify-content: center;
+  border-color: transparent;
+  background: none;
+}
+
+#untilNow:hover {
+  border-color: var(--line);
+  background: var(--bg);
+}
+
+#untilNow.on {
+  border-color: var(--accent);
+  background: #1b2a4a;
+  color: #fff;
+}
+
+/* Fills its column and never more: given a min-width of its own it grew wider than the
+   column and crossed the divider into the next one. The column carries the width instead
+   (see .rangeColumn), which is the only way the two cannot disagree. */
+#rangeFrom,
+#rangeTo {
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+
+#quickRanges button,
+#startAnchors button,
+#durations button {
+  border-color: transparent;
+  background: none;
+  text-align: left;
+  white-space: nowrap;
+}
+
+#quickRanges button:hover,
+#startAnchors button:hover,
+#durations button:hover {
+  border-color: var(--line);
+  background: var(--bg);
+}
+
+#quickRanges button.on,
+#startAnchors button.on,
+#durations button.on {
+  border-color: var(--accent);
+  background: #1b2a4a;
+  color: #fff;
+}
+
+#rangeActions {
+  margin-top: 6px;
+  min-height: 16px; /* holds its place, so an error does not shift the panel */
+}
+
+#rangeError:not(:empty) {
+  color: #f3b8b8;
+}
+
+/* -------------------------------- loading --------------------------------- */
+
+/* A 24h window takes several seconds to load, which read as a freeze. An
+   indeterminate bar under the header, as Grafana does, plus a spinning refresh
+   glyph and a dimmed chart. */
+#loading {
+  height: 2px;
+  background: var(--line);
+  opacity: 0;
+  transition: opacity 120ms;
+}
+
+body.loading #loading {
+  opacity: 1;
+}
+
+body.loading #loading::after {
+  display: block;
+  width: 35%;
+  height: 2px;
+  background: var(--accent);
+  animation: sweep 1.1s ease-in-out infinite;
+  content: "";
+}
+
+@keyframes sweep {
+  0% { margin-left: -35%; }
+  100% { margin-left: 100%; }
+}
+
+body.loading #chart {
+  opacity: 0.45;
+  transition: opacity 160ms;
+}
+
+body.loading #refresh {
+  color: var(--accent);
+}
+
+body.loading #refresh .icon {
+  animation: spin 900ms linear infinite;
+  transform-origin: 50% 50%;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.loading #loading::after,
+  body.loading #refresh .icon {
+    animation: none;
+  }
+
+  body.loading #loading::after {
+    width: 100%;
+  }
+}
+
+/* ---------------------------- refresh control ----------------------------- */
+
+#refreshControl {
+  position: relative;
+  display: flex;
+}
+
+#refresh {
+  border-radius: 6px 0 0 6px;
+}
+
+#refreshIntervalButton {
+  min-width: 66px;
+  justify-content: space-between;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 0;
+  color: var(--muted);
+}
+
+#refreshIntervalButton.on {
+  border-color: var(--accent);
+  background: #1b2a4a;
+  color: #fff;
+}
+
+#refreshMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 55%);
+}
+
+#refreshMenu[hidden] {
+  display: none;
+}
+
+#refreshMenu button {
+  min-width: 84px;
+  border-color: transparent;
+  background: none;
+  text-align: left;
+}
+
+#refreshMenu button:hover {
+  border-color: var(--line);
+  background: var(--bg);
+}
+
+#refreshMenu button.on {
+  border-color: var(--accent);
+  background: #1b2a4a;
+  color: #fff;
+}
+
+/* --------------------------------- chart ---------------------------------- */
+
+#legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 8px 16px;
+  color: var(--muted);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Legend chips double as filters: click one to keep only the pipelines that had a
+   run in that state. */
+button.chip.filter {
+  padding: 3px 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.chip.filter:hover {
+  border-color: var(--line);
+  background: var(--panel);
+}
+
+button.chip.filter.on {
+  border-color: var(--accent);
+  background: #1b2a4a;
+  color: #fff;
+}
+
+button.chip.filter.off {
+  opacity: 0.4;
+}
+
+button.chip.filter.clear {
+  color: var(--accent);
+}
+
+.chip i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+#chart {
+  padding: 0 8px 30px;
+}
+
+#main {
+  position: relative; /* the drag selection is positioned against it */
+}
+
+/* ------------------------------ zoom by dragging --------------------------- */
+
+#dragSelect {
+  position: absolute;
+  top: 0;
+  pointer-events: none; /* never eat the pointer events the drag itself needs */
+  background: rgb(78 130 254 / 18%);
+  border-left: 1px solid var(--accent);
+  border-right: 1px solid var(--accent);
+}
+
+body.dragging {
+  user-select: none; /* dragging across a chart must not select its labels */
+  cursor: col-resize;
+}
+
+/* A scroll bar under the plot, showing which slice of the range is on screen. */
+#zoomBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -22px 0 18px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+#zoomBar[hidden] {
+  display: none;
+}
+
+/* Fills whatever is left after the reset button and the label, rather than being given
+   the plot's own width: sized to the plot it overflowed the row and the button landed on
+   top of the thumb. The left edge still lines up with the plot; the right edge stops
+   short of it by the width of the controls. */
+#zoomTrack {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 40px;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+
+#zoomThumb {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  min-width: 14px;
+  border-radius: 5px;
+  background: #34518f;
+  border: 1px solid var(--accent);
+  cursor: grab;
+}
+
+#zoomThumb:active {
+  cursor: grabbing;
+}
+
+#zoomReset {
+  flex: none;
+  padding: 2px 4px;
+  line-height: 0;
+}
+
+#zoomLabel {
+  flex: none;
+  white-space: nowrap; /* "1.6h of 6.0h" wrapped to three lines in a shrunk flex item */
+}
+
+svg {
+  display: block;
+}
+
+svg text {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.lanelabel {
+  fill: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.lanelabel:hover {
+  fill: #fff;
+  text-decoration: underline;
+}
+
+.run {
+  cursor: pointer;
+}
+
+.run:hover {
+  stroke: #fff;
+  stroke-width: 1;
+}
+
+/* ---------------------------- tooltip and modal --------------------------- */
+
+#tooltip {
+  position: fixed;
+  z-index: 20;
+  display: none;
+  max-width: 360px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #1c2531;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 50%);
+  pointer-events: none;
+}
+
+#tooltip b {
+  color: #fff;
+}
+
+#modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 6vh 4vw;
+  background: rgb(0 0 0 / 60%);
+}
+
+#modalCard {
+  width: 100%;
+  max-width: 1100px;
+  max-height: 85vh;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+#modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#modalChart {
+  margin-top: 10px;
+}
+
+#err {
+  display: none;
+  margin: 10px 16px;
+  padding: 10px;
+  border: 1px solid #7a2e2e;
+  border-radius: 6px;
+  background: #2a1518;
+  color: #f3b8b8;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+a.ext {
+  margin-left: 10px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* ------------------------------ state table ------------------------------- */
+
+table.stat {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+table.stat th,
+table.stat td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  white-space: nowrap;
+}
+
+table.stat thead th {
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  color: var(--muted);
+  font-weight: 500;
+}
+
+table.stat th.rowh {
+  max-width: 280px;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+table.stat td.z {
+  color: #39434f;
+}
+
+table.stat .pct {
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+table.stat .tot {
+  color: var(--muted);
+}

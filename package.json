@@ -1,0 +1,21 @@
+{
+  "name": "prefect-monitor",
+  "version": "0.1.0",
+  "description": "Monitoring frontend for a Prefect 3 server: cross-flow run timelines built from the server's own automation events",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tip-cue/prefect-monitor.git"
+  },
+  "homepage": "https://github.com/Tip-cue/prefect-monitor#readme",
+  "keywords": ["prefect", "monitoring", "observability", "timeline", "dataviz"],
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node serve.js",
+    "test": "node --test test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

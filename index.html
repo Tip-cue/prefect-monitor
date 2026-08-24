@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prefect Monitor</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- Deployment config, before the app: a classic script runs ahead of a module. -->
+  <script src="config.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Prefect Monitor</h1>
+    <input id="apiUrl" title="Prefect API URL" spellcheck="false">
+
+    <span class="sep"></span>
+    <button id="mGraph">Flow graph</button>
+    <button id="mAgg">Aggregate</button>
+
+    <span class="sep"></span>
+    <div id="rangePicker">
+      <button id="rangeButton" aria-haspopup="dialog" aria-expanded="false">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/>
+          <polyline points="12 7 12 12 16 14"/>
+        </svg>
+        <span id="rangeLabel">Last 6 hours</span>
+      </button>
+      <!-- Two ways in: the last N, or a start point and how long from there. No end time
+           to fill in — it is the start plus the duration. -->
+      <div id="rangePanel" role="dialog" aria-label="Time range" hidden>
+        <div class="rangeColumn">
+          <h2>Ending now</h2>
+          <div id="quickRanges"></div>
+        </div>
+        <div class="rangeColumn">
+          <h2>Starting at</h2>
+          <div id="startAnchors"></div>
+          <label for="rangeFrom">or a time of your own</label>
+          <input id="rangeFrom" spellcheck="false" placeholder="2026-08-19 09:44">
+        </div>
+        <div class="rangeColumn">
+          <h2>For</h2>
+          <div id="durations"></div>
+          <button id="untilNow">Until now</button>
+          <label for="rangeTo">or an exact end</label>
+          <input id="rangeTo" spellcheck="false" placeholder="2026-08-19 15:44">
+          <p class="muted">
+            Up to 24h. Longer falls back to 24h from whichever end you just set:
+            back from an end, forward from a start.
+          </p>
+          <div id="rangeActions">
+            <span id="rangeError" class="muted"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <span class="sep"></span>
+    <div id="refreshControl">
+      <button id="refresh" title="Refresh now">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1"/>
+          <polyline points="20.5 4 20.5 9 15.5 9"/>
+        </svg>
+        Refresh
+      </button>
+      <button id="refreshIntervalButton" aria-haspopup="listbox" aria-expanded="false"
+              title="Auto refresh interval">
+        <span id="refreshIntervalLabel">Off</span>
+        <svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true">
+          <polyline points="7 10 12 15 17 10"/>
+        </svg>
+      </button>
+      <div id="refreshMenu" role="listbox" aria-label="Auto refresh interval" hidden></div>
+    </div>
+
+  </header>
+
+
+  <div id="loading" aria-hidden="true"></div>
+  <div id="err"></div>
+  <div id="legend"></div>
+  <div id="main">
+    <div id="chart"></div>
+
+    <!-- Outside #chart: rendering replaces that element's contents wholesale. -->
+    <div id="dragSelect" hidden></div>
+
+    <!-- Shown only while zoomed: the whole range as a track, the zoom as a draggable
+         thumb, and a way back out. -->
+    <div id="zoomBar" hidden>
+      <div id="zoomTrack">
+        <div id="zoomThumb" title="Drag to move the window"></div>
+      </div>
+      <button id="zoomReset" title="Back to the full range">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <line x1="6" y1="6" x2="18" y2="18"/>
+          <line x1="18" y1="6" x2="6" y2="18"/>
+        </svg>
+      </button>
+      <span id="zoomLabel" class="muted"></span>
+    </div>
+  </div>
+
+  <div id="tooltip"></div>
+
+  <div id="modal">
+    <div id="modalCard">
+      <div id="modalHeader">
+        <b id="modalTitle"></b>
+        <button id="modalClose">&#10005;</button>
+      </div>
+      <div id="modalChart"></div>
+    </div>
+  </div>
+
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
