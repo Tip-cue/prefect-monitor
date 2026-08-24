@@ -5,9 +5,12 @@
  * ones you cannot see by looking at it — the padding on a month that starts on a Sunday,
  * February in a leap year, stepping from January back to December.
  *
- * Weeks start on Monday, and everything is local time, matching how the range fields are
- * written and read.
+ * Weeks start on Monday, and every date question is asked of src/zone.js, so the grid is the
+ * reader's own month or the UTC one depending on the setting — a calendar that disagreed with
+ * the axis beside it would be worse than no calendar.
  */
+
+import { daysInMonth as daysIn, instantOf as at, partsOf as splitOf, weekdayOf } from './zone.js';
 
 /** Monday first, so the weekend sits together at the end. */
 export const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
@@ -19,11 +22,11 @@ const MONTHS = [
 
 export const monthLabel = (year, month) => `${MONTHS[month]} ${year}`;
 
-/** How many days that month has — day 0 of the next month is the last of this one. */
-export const daysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
+/** How many days that month has. */
+export const daysInMonth = (year, month) => daysIn(year, month);
 
 /** Which column the 1st falls in, with Monday at 0. */
-const firstColumn = (year, month) => (new Date(year, month, 1).getDay() + 6) % 7;
+const firstColumn = (year, month) => (weekdayOf(year, month, 1) + 6) % 7;
 
 /**
  * The month as rows of seven cells, `null` where the row runs past the month.
@@ -46,8 +49,8 @@ export function monthGrid(year, month) {
  * @returns {{year: number, month: number}}
  */
 export function shiftMonth(year, month, delta) {
-  const shifted = new Date(year, month + delta, 1);
-  return { year: shifted.getFullYear(), month: shifted.getMonth() };
+  const shifted = splitOf(at({ year, month: month + delta, day: 1 }));
+  return { year: shifted.year, month: shifted.month };
 }
 
 /**
@@ -57,20 +60,13 @@ export function shiftMonth(year, month, delta) {
  * the 31st of a 30-day month, an hour skipped by a daylight-saving jump — resolves the way
  * the platform resolves it instead of parsing as garbage.
  */
-export function instantOf({ year, month, day, hours = 0, minutes = 0 }) {
-  return new Date(year, month, day, hours, minutes, 0, 0).getTime();
+export function instantOf(parts) {
+  return at(parts);
 }
 
 /** The month and day-of-month an instant falls in, for opening the calendar on it. */
 export function partsOf(ms) {
-  const at = new Date(ms);
-  return {
-    year: at.getFullYear(),
-    month: at.getMonth(),
-    day: at.getDate(),
-    hours: at.getHours(),
-    minutes: at.getMinutes(),
-  };
+  return splitOf(ms);
 }
 
 /**

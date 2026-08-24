@@ -11,6 +11,7 @@ import {
 } from './time.js';
 import { laneGroups, laneOrder, packRunsIntoRows } from './layout.js';
 import { runLinkPairs } from './links.js';
+import { formatFull, formatTime } from './zone.js';
 
 const LAYOUT = {
   // Wide enough for a truncated flow name in caps: these average ~8px a character at
@@ -627,8 +628,8 @@ export function tooltipHtml(mark, { flowName, inModal }) {
     .join(' ');
 
   const when = isBin
-    ? `${new Date(Math.min(...runs.map(runStart))).toLocaleTimeString()} – ${new Date(Math.max(...runs.map(runEnd))).toLocaleTimeString()}`
-    : `${new Date(runStart(worst)).toLocaleString()}<br>duration ${formatDuration(runEnd(worst) - runStart(worst))}`;
+    ? `${formatTime(Math.min(...runs.map(runStart)))} – ${formatTime(Math.max(...runs.map(runEnd)))}`
+    : `${formatFull(runStart(worst))}<br>duration ${formatDuration(runEnd(worst) - runStart(worst))}`;
 
   let hint = 'click for sub-flows · shift-click to isolate its chain, right-click to open it';
   if (inModal) hint = 'click to open in Prefect';

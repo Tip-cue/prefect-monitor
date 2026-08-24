@@ -22,6 +22,7 @@ import {
 } from './zoom.js';
 import { readCache, writeCache, clearCache } from './browser-cache.js';
 import { apiUrlEditable, resolveApiUrl, resolveBatchKeys } from './settings.js';
+import { formatFull, getZone, setZone, zoneLabel } from './zone.js';
 import {
   WEEKDAYS, clampTime, instantOf, monthGrid, monthLabel, partsOf, shiftMonth,
 } from './calendar.js';
@@ -95,7 +96,8 @@ const refreshMs = () => REFRESH_INTERVALS.find((option) => option.label === stat
 
 /** Reads the view out of the URL so a refresh — or a pasted link — restores it. */
 function readUrl() {
-  const { range, mode, states, refresh, modal, zoom } = viewFromQuery(window.location.search);
+  const { range, mode, states, refresh, modal, zoom, zone } = viewFromQuery(window.location.search);
+  setZone(zone ?? localStorage.zone ?? 'local');
   state.range = range;
   state.mode = mode ?? localStorage.mode ?? 'graph';
   state.selectedStates = new Set(states);
@@ -119,6 +121,7 @@ function writeUrl({ push = false } = {}) {
     refresh: state.refresh,
     modal: state.modal,
     zoom: state.zoom,
+    zone: getZone(),
   });
   if (push) window.history.pushState(null, '', query);
   else window.history.replaceState(null, '', query);
@@ -394,7 +397,7 @@ function runNotice() {
 
   const skipped = formatDuration(runsFrom - from);
   return '<span class="chip" style="color:#e0c48a">⚠ too many runs to load the whole range'
-    + ` · showing from ${new Date(runsFrom).toLocaleString()}, the ${skipped} before that`
+    + ` · showing from ${formatFull(runsFrom)}, the ${skipped} before that`
     + ' is not drawn</span>';
 }
 
@@ -406,7 +409,7 @@ function asOfNotice() {
   const secondsAgo = Math.round((Date.now() - asOf) / 1000);
   if (secondsAgo < 3) return '';
   const age = secondsAgo < 90 ? `${secondsAgo}s ago` : `${Math.round(secondsAgo / 60)}m ago`;
-  return `<span class="chip muted" title="${new Date(asOf).toLocaleString()}">as of ${age}</span>`;
+  return `<span class="chip muted" title="${formatFull(asOf)}">as of ${age}</span>`;
 }
 
 function linkNotice() {
@@ -416,7 +419,7 @@ function linkNotice() {
 
   if (linksFrom && from && linksFrom > from + 60_000) {
     return '<span class="chip" style="color:#e0c48a">⚠ links only reach back to'
-      + ` ${new Date(linksFrom).toLocaleString()} · earlier runs are drawn unlinked</span>`;
+      + ` ${formatFull(linksFrom)} · earlier runs are drawn unlinked</span>`;
   }
 
   if (linkError) {
@@ -960,6 +963,9 @@ function syncControls() {
     button.classList.toggle('on', !openEnded && Number(button.dataset.ms) === span);
   });
 
+  $('#zoneLabel').textContent = zoneLabel();
+  $('#zoneToggle').classList.toggle('on', getZone() === 'utc');
+
   $('#refreshIntervalLabel').textContent = state.refresh;
   $('#refreshIntervalButton').classList.toggle('on', state.refresh !== 'Off');
   document.querySelectorAll('#refreshMenu button').forEach((button) => {
@@ -1097,10 +1103,12 @@ let calendar = null;
  */
 function drawCalendar() {
   if (!calendar) return;
-  const { field, year, month, hours, minutes } = calendar;
-  const on = partsOf(fieldInstant(field));
+  const { year, month, day: picked, hours, minutes } = calendar;
 
-  const isSelected = (day) => on.year === year && on.month === month && on.day === day;
+  // The highlight follows what has been clicked, not what the field still says: a day is
+  // chosen first and confirmed after, so the two disagree in between.
+  const isSelected = (day) => day === picked
+    && year === calendar.year && month === calendar.month;
 
   const rows = monthGrid(year, month).map((week) => `<tr>${week.map((day) => (
     day === null
@@ -1123,13 +1131,16 @@ function drawCalendar() {
       <input id="calendarHours" type="number" min="0" max="23" value="${hours}">
       :
       <input id="calendarMinutes" type="number" min="0" max="59" step="5" value="${minutes}">
+      <button id="calendarApply" title="Use this date and time">&#10003;</button>
     </div>`;
 }
 
 /** Opens the calendar under `field`, on the month that field is already showing. */
 function openCalendar(field) {
   const at = partsOf(fieldInstant(field));
-  calendar = { field, year: at.year, month: at.month, hours: at.hours, minutes: at.minutes };
+  calendar = {
+    field, year: at.year, month: at.month, day: at.day, hours: at.hours, minutes: at.minutes,
+  };
 
   const host = document.querySelector(`.calendarHost[data-field="${field}"]`);
   host.appendChild($('#calendar'));
@@ -1149,9 +1160,10 @@ function closeCalendar() {
 }
 
 /** Writes the picked instant into the field and applies it, as clicking an anchor does. */
-function applyCalendar(day) {
+function applyCalendar() {
+  const { year, month, day } = calendar;
   const { hours, minutes } = clampTime(calendar.hours, calendar.minutes);
-  const picked = instantOf({ year: calendar.year, month: calendar.month, day, hours, minutes });
+  const picked = instantOf({ year, month, day, hours, minutes });
 
   $(`#${calendar.field}`).value = formatLocal(picked);
   // The field just edited is the one to keep if the pair is longer than a day.
@@ -1175,7 +1187,20 @@ function buildCalendar() {
     }
 
     const day = event.target.closest('[data-day]');
-    if (day) applyCalendar(Number(day.dataset.day));
+    if (day) {
+      // Chosen, not applied: the time may still need setting, and applying here would close
+      // the panel before it could be.
+      calendar.day = Number(day.dataset.day);
+      drawCalendar();
+      return;
+    }
+
+    if (event.target.closest('#calendarApply')) applyCalendar();
+  });
+
+  // Enter is the same as the tick: a time typed rather than stepped should not need the mouse.
+  $('#calendar').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') applyCalendar();
   });
 
   // Remembered, not redrawn. Redrawing here replaced the very input being clicked, so a
@@ -1243,6 +1268,15 @@ function init() {
   $('#mGraph').onclick = () => setMode('graph');
   $('#mAgg').onclick = () => setMode('agg');
   $('#refresh').onclick = () => load({ force: true });
+
+  // A display setting: nothing is refetched, everything is relabelled. The range keeps its
+  // meaning too — "now-6h" is the same six hours whichever clock names them.
+  $('#zoneToggle').onclick = () => {
+    localStorage.zone = setZone(getZone() === 'utc' ? 'local' : 'utc');
+    syncControls();
+    writeUrl();
+    draw();
+  };
 
   // Nothing to choose when the API is next to us, or when a deployment pinned it: the field
   // is hidden rather than shown filled in and ignored.

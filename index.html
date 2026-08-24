@@ -33,7 +33,7 @@
           <h2>Ending now</h2>
           <div id="quickRanges"></div>
         </div>
-        <div class="rangeColumn">
+        <div class="rangeColumn hasCalendar">
           <h2>Starting at</h2>
           <div id="startAnchors"></div>
           <label for="rangeFrom">or a time of your own</label>
@@ -44,7 +44,7 @@
           </div>
           <div class="calendarHost" data-field="rangeFrom"></div>
         </div>
-        <div class="rangeColumn">
+        <div class="rangeColumn hasCalendar">
           <h2>For</h2>
           <div id="durations"></div>
           <button id="untilNow">Until now</button>
@@ -68,6 +68,14 @@
 
     <!-- One calendar, moved into the host under whichever field opened it. -->
     <div id="calendar" role="dialog" aria-label="Pick a date" hidden></div>
+
+    <button id="zoneToggle" title="Show times in UTC or in your own timezone">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="9"/>
+        <path d="M3 12h18M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18"/>
+      </svg>
+      <span id="zoneLabel">Local</span>
+    </button>
 
     <span class="sep"></span>
     <div id="refreshControl">

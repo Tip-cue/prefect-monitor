@@ -36,6 +36,7 @@ ingress as Prefect on a `/monitor/` path, is all it takes.
 | `src/layout.js` | pipeline grouping, lane ordering, sub-row packing |
 | `src/zoom.js` | drag-to-zoom geometry and the scroll bar's thumb |
 | `src/calendar.js` | month grids for the date picker |
+| `src/zone.js` | local-or-UTC: every timestamp on screen is formatted here |
 | `src/links.js` | linking runs to what triggered them, chains, chain filtering |
 | `src/states.js`, `src/time.js` | state colour/severity, timestamps and ticks |
 | `test.js` | `npm test` — covers everything under `src/` that isn't drawing |
@@ -112,6 +113,23 @@ it: `now-6h` → `now` still means "the last six hours" tomorrow, where a resolv
 would silently freeze. The refresh control is a Grafana-style Refresh button plus an
 interval menu (Off through 1h).
 
+## Local time or UTC
+
+The **Local / UTC** button in the header switches which clock the whole page reads in: the
+axis, tooltips, the picker fields, the calendar and the notices, all of them, because a page
+showing some times in one zone and some in another is worse than either. It is a display
+setting — nothing is refetched, and `now-6h` is the same six hours whichever clock names them.
+
+UTC is what pipelines are usually scheduled and labelled in: a batch stamped
+`2026-08-19T06:00:00+00:00` should be findable at 06:00 on the axis rather than at 09:00
+because the reader sits in +03:00. The setting is remembered, and rides in the URL as
+`tz=utc`, so a link shows the same times to whoever opens it.
+
+Typed timestamps follow it too. A stamp with no zone on it — `2026-08-19 09:44` — means the
+clock being read, so a field rendered in UTC parses back as UTC; otherwise every trip through
+the field would shift the range by the offset. An explicit `Z` or `+03:00` is always honoured
+as written.
+
 ## Picking a range
 
 **At most 24 hours**, offered and enforced. One fetch reads ~2200 runs, which on a busy
@@ -122,9 +140,17 @@ Three ways in, and no need to fill in more than one of them:
 
 - **Ending now** — the last 15m, 30m, 1h, 3h, 6h, 12h or 24h.
 - **Starting at** — midnight today, yesterday, 2, 3 or 7 days ago, or a time of your own:
-  type it as `2026-08-19 09:44`, or pick it from the calendar behind the 📅 button. The
-  calendar opens on the month the field already shows, and sits *in flow* beneath it rather
-  than floating, so the panel grows and there is no second popover to keep inside the window.
+  type it as `2026-08-19 09:44`, or pick it from the calendar behind the 📅 button.
+
+  The calendar opens on the range you are looking at — "Last 24 hours" lands on yesterday at
+  this hour, with that day lit — and sits *in flow* beneath the field rather than floating,
+  so the panel grows downwards and there is no second popover to keep inside the window. The
+  columns that hold one are sized for it whether it is open or not, so opening it moves
+  nothing sideways.
+
+  A day is **chosen** by clicking it and **committed** with ✓ (or Enter). Applying on the
+  click would have closed the panel before the time could be set, which left no way to change
+  only the hour.
 - **For** — the same seven durations, an exact **end** timestamp, or **Until now**, which
   runs the window on from the start instead of ending it a fixed span later. That last one
   is what you want for today: the chart keeps up as runs come in. From a start more than a

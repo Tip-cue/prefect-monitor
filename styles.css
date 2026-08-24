@@ -138,6 +138,13 @@ button.on {
   min-width: 170px;
 }
 
+/* A column with a date picker in it is sized for the calendar whether it is open or not.
+   Sized only when open, the panel re-laid itself out mid-interaction — the columns jumped
+   and the whole thing read as broken. */
+.rangeColumn.hasCalendar {
+  min-width: 212px;
+}
+
 .rangeColumn + .rangeColumn {
   padding-left: 14px;
   border-left: 1px solid var(--line);
@@ -329,6 +336,17 @@ button.on {
   min-width: 0;
   padding: 3px 6px;
   font-variant-numeric: tabular-nums;
+}
+
+/* Applies the day and time as they stand — without it, a time could only be committed by
+   clicking a day, so changing just the hour was impossible. */
+#calendarApply {
+  flex: none;
+  margin-left: 2px;
+  padding: 3px 8px;
+  border-color: var(--accent);
+  background: #1b2a4a;
+  color: #fff;
 }
 
 #quickRanges button,

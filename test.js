@@ -20,6 +20,7 @@ import { markPath, tooltipPosition, popoverOffset } from './src/render.js';
 import {
   monthGrid, monthLabel, shiftMonth, daysInMonth, instantOf, partsOf, clampTime, WEEKDAYS,
 } from './src/calendar.js';
+import { setZone, getZone, formatStamp, zoneLabel } from './src/zone.js';
 import {
   planFetch, mergeRuns, mergeLinks, unsettledRunIds, projectForStorage,
 } from './src/run-cache.js';
@@ -760,6 +761,60 @@ test('a run mark squares off the end the window cut', async (t) => {
     // Runs clamp to a 4px minimum width, so the radius has to shrink, not overflow.
     const path = markPath(0, 0, 4, 14);
     assert.ok(!/NaN|-\d/.test(path), path);
+  });
+});
+
+test('reading the page in UTC instead of the local clock', async (t) => {
+  // 23:30 UTC — a different day in any positive offset, which is what makes this worth
+  // testing rather than eyeballing.
+  const evening = Date.parse('2026-08-24T23:30:00Z');
+  t.after(() => setZone('local'));
+
+  await t.test('the same instant, named by two clocks', () => {
+    setZone('utc');
+    assert.equal(formatStamp(evening), '2026-08-24 23:30');
+    assert.equal(zoneLabel(), 'UTC');
+
+    setZone('local');
+    assert.notEqual(getZone(), 'utc');
+    // Whatever the runner's offset, the stamp is a real rendering of the same instant.
+    assert.match(formatStamp(evening), /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+  });
+
+  await t.test('a stamp round-trips through the zone it was written in', () => {
+    // Rendered in UTC and parsed as local, every trip through the field would shift the
+    // range by the offset.
+    for (const zone of ['utc', 'local']) {
+      setZone(zone);
+      assert.equal(parseTimeExpression(formatStamp(evening)), evening, zone);
+    }
+  });
+
+  await t.test('an explicit offset is still honoured, whatever the setting', () => {
+    for (const zone of ['utc', 'local']) {
+      setZone(zone);
+      assert.equal(parseTimeExpression('2026-08-24T23:30:00Z'), evening);
+      assert.equal(parseTimeExpression('2026-08-25T02:30:00+03:00'), evening);
+    }
+  });
+
+  await t.test('midnight means midnight on the clock being read', () => {
+    setZone('utc');
+    assert.equal(new Date(anchorStart(0, evening)).toISOString(), '2026-08-24T00:00:00.000Z');
+    assert.equal(new Date(anchorStart(1, evening)).toISOString(), '2026-08-23T00:00:00.000Z');
+  });
+
+  await t.test('the calendar shows the UTC day, not the local one', () => {
+    setZone('utc');
+    assert.equal(partsOf(evening).day, 24);
+    assert.equal(partsOf(evening).hours, 23);
+  });
+
+  await t.test('it is part of the view, so a pasted link reads the same for anyone', () => {
+    const query = viewToQuery({ range: DEFAULT_RANGE, states: [], zone: 'utc' });
+    assert.match(query, /tz=utc/);
+    assert.equal(viewFromQuery(query).zone, 'utc');
+    assert.equal(viewFromQuery('?from=now-6h&to=now').zone, null, 'local needs no parameter');
   });
 });
 

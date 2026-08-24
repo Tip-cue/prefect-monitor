@@ -28,6 +28,8 @@ export const DURATIONS = [
   { label: '24h', long: '24 hours', ms: MAX_RANGE_MS },
 ];
 
+import { formatDay, formatFull, formatStamp, instantOf, isUtc, partsOf } from './zone.js';
+
 /** Offered in the picker, and the shorthand the URL round-trips. */
 export const QUICK_RANGES = DURATIONS.map(({ label, long }) => ({
   label: `Last ${long}`,
@@ -47,20 +49,15 @@ export const START_ANCHORS = [
   { label: '7 days ago', days: 7 },
 ];
 
-/** Local midnight, `days` back. */
+/** Midnight `days` back, on the clock the page is reading in. */
 export function anchorStart(days, nowMs = Date.now()) {
-  const at = new Date(nowMs);
-  at.setHours(0, 0, 0, 0);
-  at.setDate(at.getDate() - days);
-  return at.getTime();
+  const today = partsOf(nowMs);
+  return instantOf({ year: today.year, month: today.month, day: today.day - days });
 }
 
-/** `YYYY-MM-DD HH:mm` local — what the picker shows, and what it will read back. */
+/** `YYYY-MM-DD HH:mm` — what the picker shows, and what it will read back. */
 export function formatLocal(ms) {
-  const at = new Date(ms);
-  const pad = (value) => String(value).padStart(2, '0');
-  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`
-    + ` ${pad(at.getHours())}:${pad(at.getMinutes())}`;
+  return formatStamp(ms);
 }
 
 /**
@@ -148,8 +145,12 @@ export function parseTimeExpression(expression, nowMs = Date.now()) {
   // must be rejected, not silently resolved to some date in 2001.
   if (!ABSOLUTE.test(text)) return null;
 
-  // "2026-08-19 09:44" is not valid ISO; a T makes it parseable, as local time.
-  const parsed = Date.parse(text.replace(' ', 'T'));
+  // "2026-08-19 09:44" is not valid ISO; a T makes it parseable. A stamp with no zone on it
+  // means the zone the page is reading in — otherwise a UTC-mode field would render 06:00
+  // and then parse back as 06:00 local, moving the range by the offset every round trip.
+  const iso = text.replace(' ', 'T');
+  const bare = !/(Z|[+-]\d{2}:?\d{2})$/.test(iso);
+  const parsed = Date.parse(bare && isUtc() ? `${iso}Z` : iso);
   return Number.isNaN(parsed) ? null : parsed;
 }
 
@@ -183,10 +184,10 @@ export function describeRange(range) {
   const from = parseTimeExpression(range?.from);
   const to = parseTimeExpression(range?.to);
   if (from !== null && to !== null && !/^now/.test(range.from) && !/^now/.test(range.to)) {
-    const day = (ms) => new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    const clock = (ms) => formatLocal(ms).slice(-5);
+    const day = (ms) => formatDay(ms);
+    const clock = (ms) => formatStamp(ms).slice(-5);
 
-    return new Date(from).toDateString() === new Date(to).toDateString()
+    return formatStamp(from).slice(0, 10) === formatStamp(to).slice(0, 10)
       ? `${day(from)} ${clock(from)}–${clock(to)}`
       : `${day(from)} ${clock(from)} → ${day(to)} ${clock(to)}`;
   }
@@ -194,7 +195,7 @@ export function describeRange(range) {
   const readable = (expression) => {
     if (/^now/.test(expression)) return expression;
     const ms = parseTimeExpression(expression);
-    return ms === null ? expression : new Date(ms).toLocaleString();
+    return ms === null ? expression : formatFull(ms);
   };
   return `${readable(range.from)} → ${readable(range.to)}`;
 }
@@ -220,6 +221,9 @@ export function viewFromQuery(search) {
     refresh: params.get('refresh'),
     modal: modalFromParams(params),
     zoom: zoomFromParams(params),
+    // Which clock to read in. Part of the view, so a pasted link shows the same times to
+    // whoever opens it — the point of sharing one.
+    zone: params.get('tz') === 'utc' ? 'utc' : null,
   };
 }
 
@@ -250,7 +254,7 @@ function modalFromParams(params) {
 }
 
 /** The query string for a view — everything needed to reproduce it from a paste. */
-export function viewToQuery({ range, mode, states, refresh, modal, zoom }) {
+export function viewToQuery({ range, mode, states, refresh, modal, zoom, zone }) {
   const params = new URLSearchParams();
   params.set('from', range.from);
   params.set('to', range.to);
@@ -258,6 +262,7 @@ export function viewToQuery({ range, mode, states, refresh, modal, zoom }) {
   if (states?.length) params.set('states', states.join(','));
   if (refresh && refresh !== 'Off') params.set('refresh', refresh);
   if (modal && MODAL_PARAMS[modal.kind]) params.set(MODAL_PARAMS[modal.kind], modal.id);
+  if (zone === 'utc') params.set('tz', 'utc');
   if (zoom) {
     params.set('zoomFrom', new Date(zoom.from).toISOString());
     params.set('zoomTo', new Date(zoom.to).toISOString());

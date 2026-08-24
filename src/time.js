@@ -1,5 +1,7 @@
 /** Run timestamps, durations, and time-axis ticks. */
 
+import { formatClock, formatDay } from './zone.js';
+
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
@@ -62,10 +64,8 @@ export function timeTicks(from, to) {
 
 /** Windows longer than two days need the date, shorter ones only the clock. */
 export function formatTick(timestamp, windowMs) {
-  const date = new Date(timestamp);
-  const clock = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const clock = formatClock(timestamp);
   if (windowMs <= 2 * DAY) return clock;
 
-  const day = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  return `${day} ${clock}`;
+  return `${formatDay(timestamp)} ${clock}`;
 }
