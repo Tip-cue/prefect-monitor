@@ -125,6 +125,10 @@ UTC is what pipelines are usually scheduled and labelled in: a batch stamped
 because the reader sits in +03:00. The setting is remembered, and rides in the URL as
 `tz=utc`, so a link shows the same times to whoever opens it.
 
+Switching clocks keeps the window on the same runs: a range fixed at 11:00 in +03:00 is
+rewritten to 08:00 when you switch to UTC, rather than being re-read as 11:00 UTC and jumping
+by the offset. A relative range needs no rewriting — six hours is six hours on any clock.
+
 Typed timestamps follow it too. A stamp with no zone on it — `2026-08-19 09:44` — means the
 clock being read, so a field rendered in UTC parses back as UTC; otherwise every trip through
 the field would shift the range by the offset. An explicit `Z` or `+03:00` is always honoured

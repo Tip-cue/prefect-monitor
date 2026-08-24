@@ -11,7 +11,7 @@ import {
 import {
   QUICK_RANGES, DURATIONS, START_ANCHORS, DEFAULT_RANGE, MAX_RANGE_MS,
   anchorStart, capRange, composeRange, formatLocal,
-  resolveRange, describeRange, matchQuickRange, parseTimeExpression,
+  resolveRange, describeRange, matchQuickRange, parseTimeExpression, restampRange,
   viewFromQuery, viewToQuery,
 } from './time-range.js';
 import {
@@ -1272,7 +1272,14 @@ function init() {
   // A display setting: nothing is refetched, everything is relabelled. The range keeps its
   // meaning too — "now-6h" is the same six hours whichever clock names them.
   $('#zoneToggle').onclick = () => {
+    // Resolved on the old clock, rewritten for the new one: a range fixed at 11:00 in
+    // +03:00 becomes 08:00 in UTC and covers the same runs, rather than jumping by the
+    // offset because a bare stamp is read in whichever zone is current.
+    const showing = resolveRange(state.range);
+
     localStorage.zone = setZone(getZone() === 'utc' ? 'local' : 'utc');
+    if (showing) state.range = restampRange(state.range, showing);
+
     syncControls();
     writeUrl();
     draw();

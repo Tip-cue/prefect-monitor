@@ -300,3 +300,25 @@ export function composeRange({ startMs = null, endMs = null, durationMs = null, 
   const quick = QUICK_RANGES[DURATIONS.findIndex((each) => each.ms === span)];
   return quick ? { from: quick.from, to: 'now' } : { ...DEFAULT_RANGE };
 }
+
+/**
+ * The same range, written for a different clock.
+ *
+ * A fixed endpoint is stored as a bare stamp and read in whichever zone the page is in, so
+ * switching zones would otherwise re-read `2026-08-24 11:00` as 11:00 in the new one and
+ * move the window by the offset. Re-stamped from the instants it already resolved to, it
+ * keeps pointing at the same moments: 11:00 in +03:00 becomes 08:00 in UTC.
+ *
+ * Relative ends are left alone — `now-6h` is the same six hours on any clock.
+ *
+ * @param {{from: string, to: string}} range as written for the previous zone
+ * @param {{from: number, to: number}} resolved what it meant, resolved before the switch
+ */
+export function restampRange(range, resolved) {
+  const rewrite = (expression, ms) => (/^now/.test(expression) ? expression : formatStamp(ms));
+
+  return {
+    from: rewrite(range.from, resolved.from),
+    to: rewrite(range.to, resolved.to),
+  };
+}

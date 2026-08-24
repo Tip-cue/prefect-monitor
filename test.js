@@ -37,7 +37,7 @@ import {
 import {
   parseTimeExpression, resolveRange, describeRange, viewFromQuery, viewToQuery, DEFAULT_RANGE,
   QUICK_RANGES, DURATIONS, MAX_RANGE_MS, anchorStart, capRange, composeRange, formatLocal,
-  rangeFromStart, rangeToEnd,
+  rangeFromStart, rangeToEnd, restampRange,
 } from './src/time-range.js';
 
 const iso = (ms) => new Date(ms).toISOString();
@@ -808,6 +808,33 @@ test('reading the page in UTC instead of the local clock', async (t) => {
     setZone('utc');
     assert.equal(partsOf(evening).day, 24);
     assert.equal(partsOf(evening).hours, 23);
+  });
+
+  await t.test('switching clocks keeps the window on the same runs', () => {
+    // A fixed 11:00 in +03:00 is 08:00 in UTC. Left as the bare stamp it was stored as, it
+    // would be re-read as 11:00 UTC and the window would jump by the offset.
+    setZone('local');
+    const fixed = { from: '2026-08-24 11:00', to: '2026-08-24 17:00' };
+    const before = resolveRange(fixed);
+
+    setZone('utc');
+    const after = resolveRange(restampRange(fixed, before));
+    assert.deepEqual(after, before, 'the same instants, named by the other clock');
+  });
+
+  await t.test('a relative range needs no rewriting', () => {
+    setZone('utc');
+    const relative = { from: 'now-6h', to: 'now' };
+    assert.deepEqual(restampRange(relative, { from: 1, to: 2 }), relative,
+      'six hours is six hours on any clock');
+  });
+
+  await t.test('a half-relative range keeps the half that is relative', () => {
+    setZone('utc');
+    const mixed = restampRange({ from: '2026-08-24 11:00', to: 'now' },
+      { from: Date.parse('2026-08-24T08:00:00Z'), to: Date.now() });
+    assert.equal(mixed.from, '2026-08-24 08:00');
+    assert.equal(mixed.to, 'now');
   });
 
   await t.test('it is part of the view, so a pasted link reads the same for anyone', () => {
