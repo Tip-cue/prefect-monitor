@@ -23,7 +23,7 @@ import {
 import { readCache, writeCache, clearCache } from './browser-cache.js';
 import { apiUrlEditable, resolveApiUrl, resolveBatchKeys } from './settings.js';
 import {
-  WEEKDAYS, instantOf, monthGrid, monthLabel, partsOf, shiftMonth,
+  WEEKDAYS, clampTime, instantOf, monthGrid, monthLabel, partsOf, shiftMonth,
 } from './calendar.js';
 
 /**
@@ -1057,7 +1057,13 @@ function applyRange({ startMs, endMs, durationMs, untilNow = false, anchor = 'en
   setRange(range, anchor);
 }
 
-/** Which field the calendar is editing, and the month it is showing. */
+/**
+ * Which field the calendar is editing, the month it is showing, and the time it will apply.
+ *
+ * The time lives here rather than being read back out of the inputs, because redrawing —
+ * stepping to another month — replaces them. Reading the field instead meant every redraw,
+ * including the one on a stepper click, snapped the time back to what the field said.
+ */
 let calendar = null;
 
 /**
@@ -1069,12 +1075,12 @@ let calendar = null;
  */
 function drawCalendar() {
   if (!calendar) return;
-  const { field, year, month } = calendar;
+  const { field, year, month, hours, minutes } = calendar;
   const selected = parseTimeExpression($(`#${field}`).value.trim());
-  const now = partsOf(selected ?? Date.now());
+  const on = selected === null ? null : partsOf(selected);
 
-  const isSelected = (day) => selected !== null
-    && now.year === year && now.month === month && now.day === day;
+  const isSelected = (day) => on !== null
+    && on.year === year && on.month === month && on.day === day;
 
   const rows = monthGrid(year, month).map((week) => `<tr>${week.map((day) => (
     day === null
@@ -1094,16 +1100,16 @@ function drawCalendar() {
     </table>
     <div id="calendarTime">
       time
-      <input id="calendarHours" type="number" min="0" max="23" value="${now.hours}">
+      <input id="calendarHours" type="number" min="0" max="23" value="${hours}">
       :
-      <input id="calendarMinutes" type="number" min="0" max="59" step="5" value="${now.minutes}">
+      <input id="calendarMinutes" type="number" min="0" max="59" step="5" value="${minutes}">
     </div>`;
 }
 
 /** Opens the calendar under `field`, on the month that field is already showing. */
 function openCalendar(field) {
   const at = partsOf(parseTimeExpression($(`#${field}`).value.trim()) ?? Date.now());
-  calendar = { field, year: at.year, month: at.month };
+  calendar = { field, year: at.year, month: at.month, hours: at.hours, minutes: at.minutes };
 
   const host = document.querySelector(`.calendarHost[data-field="${field}"]`);
   host.appendChild($('#calendar'));
@@ -1124,8 +1130,7 @@ function closeCalendar() {
 
 /** Writes the picked instant into the field and applies it, as clicking an anchor does. */
 function applyCalendar(day) {
-  const hours = Number($('#calendarHours').value);
-  const minutes = Number($('#calendarMinutes').value);
+  const { hours, minutes } = clampTime(calendar.hours, calendar.minutes);
   const picked = instantOf({ year: calendar.year, month: calendar.month, day, hours, minutes });
 
   $(`#${calendar.field}`).value = formatLocal(picked);
@@ -1153,10 +1158,11 @@ function buildCalendar() {
     if (day) applyCalendar(Number(day.dataset.day));
   });
 
-  // Typing a time is only worth anything once a day is picked, so it redraws rather than
-  // applies: the selected day stays lit and the next click carries the new time.
-  $('#calendar').addEventListener('change', (event) => {
-    if (event.target.type === 'number') drawCalendar();
+  // Remembered, not redrawn. Redrawing here replaced the very input being clicked, so a
+  // stepper set the value and then lost it in the same breath.
+  $('#calendar').addEventListener('input', (event) => {
+    if (event.target.id === 'calendarHours') calendar.hours = Number(event.target.value);
+    if (event.target.id === 'calendarMinutes') calendar.minutes = Number(event.target.value);
   });
 }
 

@@ -18,7 +18,7 @@ import {
 } from './src/links.js';
 import { markPath, tooltipPosition, popoverOffset } from './src/render.js';
 import {
-  monthGrid, monthLabel, shiftMonth, daysInMonth, instantOf, partsOf, WEEKDAYS,
+  monthGrid, monthLabel, shiftMonth, daysInMonth, instantOf, partsOf, clampTime, WEEKDAYS,
 } from './src/calendar.js';
 import {
   planFetch, mergeRuns, mergeLinks, unsettledRunIds, projectForStorage,
@@ -803,6 +803,15 @@ test('the month grid behind the date picker', async (t) => {
   await t.test('a day and a time round-trip through an instant', () => {
     const parts = { year: 2026, month: 7, day: 19, hours: 9, minutes: 44 };
     assert.deepEqual(partsOf(instantOf(parts)), parts);
+  });
+
+  await t.test('a mistyped time stays on the day that was clicked', () => {
+    // instantOf would roll 99 hours into four days' time, silently moving the range off
+    // the day just picked.
+    assert.deepEqual(clampTime(99, 200), { hours: 23, minutes: 59 });
+    assert.deepEqual(clampTime(-3, -1), { hours: 0, minutes: 0 });
+    assert.deepEqual(clampTime(NaN, undefined), { hours: 0, minutes: 0 }, 'an emptied field');
+    assert.deepEqual(clampTime(9.7, 44), { hours: 9, minutes: 44 });
   });
 
   await t.test('a day that does not exist resolves rather than parsing as garbage', () => {

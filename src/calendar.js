@@ -72,3 +72,15 @@ export function partsOf(ms) {
     minutes: at.getMinutes(),
   };
 }
+
+/**
+ * A time of day, held to a real one.
+ *
+ * Typed input reaches here as anything at all — empty, 99, -3 — and `instantOf` would
+ * happily roll 99 hours into four days' time. Clamping keeps a mistyped hour on the day
+ * that was actually clicked.
+ */
+export function clampTime(hours, minutes) {
+  const hold = (value, max) => Math.min(max, Math.max(0, Number.isFinite(value) ? Math.trunc(value) : 0));
+  return { hours: hold(hours, 23), minutes: hold(minutes, 59) };
+}
