@@ -35,6 +35,7 @@ ingress as Prefect on a `/monitor/` path, is all it takes.
 | `src/render.js` | builds the timeline SVG, legend, tooltip and state table |
 | `src/layout.js` | pipeline grouping, lane ordering, sub-row packing |
 | `src/zoom.js` | drag-to-zoom geometry and the scroll bar's thumb |
+| `src/calendar.js` | month grids for the date picker |
 | `src/links.js` | linking runs to what triggered them, chains, chain filtering |
 | `src/states.js`, `src/time.js` | state colour/severity, timestamps and ticks |
 | `test.js` | `npm test` — covers everything under `src/` that isn't drawing |
@@ -120,8 +121,10 @@ to say so. A longer period is more useful as a *shifted* day than as a truncated
 Three ways in, and no need to fill in more than one of them:
 
 - **Ending now** — the last 15m, 30m, 1h, 3h, 6h, 12h or 24h.
-- **Starting at** — midnight today, yesterday, 2, 3 or 7 days ago, or a time typed in
-  as `2026-08-19 09:44`.
+- **Starting at** — midnight today, yesterday, 2, 3 or 7 days ago, or a time of your own:
+  type it as `2026-08-19 09:44`, or pick it from the calendar behind the 📅 button. The
+  calendar opens on the month the field already shows, and sits *in flow* beneath it rather
+  than floating, so the panel grows and there is no second popover to keep inside the window.
 - **For** — the same seven durations, an exact **end** timestamp, or **Until now**, which
   runs the window on from the start instead of ending it a fixed span later. That last one
   is what you want for today: the chart keeps up as runs come in. From a start more than a

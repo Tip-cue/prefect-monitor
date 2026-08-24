@@ -22,6 +22,9 @@ import {
 } from './zoom.js';
 import { readCache, writeCache, clearCache } from './browser-cache.js';
 import { apiUrlEditable, resolveApiUrl, resolveBatchKeys } from './settings.js';
+import {
+  WEEKDAYS, instantOf, monthGrid, monthLabel, partsOf, shiftMonth,
+} from './calendar.js';
 
 /**
 /** What `config.js` said, if the deployment wrote one. */
@@ -977,6 +980,7 @@ function openRangePanel() {
 }
 
 function closeRangePanel() {
+  closeCalendar();
   $('#rangePanel').hidden = true;
   $('#rangeButton').setAttribute('aria-expanded', 'false');
 }
@@ -1053,6 +1057,109 @@ function applyRange({ startMs, endMs, durationMs, untilNow = false, anchor = 'en
   setRange(range, anchor);
 }
 
+/** Which field the calendar is editing, and the month it is showing. */
+let calendar = null;
+
+/**
+ * Draws the calendar for whichever field opened it.
+ *
+ * In flow beneath that field rather than floating: the panel simply grows, so there is no
+ * second popover to keep inside the window — a problem the range panel itself needed
+ * measuring to solve.
+ */
+function drawCalendar() {
+  if (!calendar) return;
+  const { field, year, month } = calendar;
+  const selected = parseTimeExpression($(`#${field}`).value.trim());
+  const now = partsOf(selected ?? Date.now());
+
+  const isSelected = (day) => selected !== null
+    && now.year === year && now.month === month && now.day === day;
+
+  const rows = monthGrid(year, month).map((week) => `<tr>${week.map((day) => (
+    day === null
+      ? '<td></td>'
+      : `<td><button data-day="${day}" class="${isSelected(day) ? 'on' : ''}">${day}</button></td>`
+  )).join('')}</tr>`).join('');
+
+  $('#calendar').innerHTML = `
+    <div id="calendarHead">
+      <button data-step="-1" title="Previous month">&#8249;</button>
+      <b>${monthLabel(year, month)}</b>
+      <button data-step="1" title="Next month">&#8250;</button>
+    </div>
+    <table>
+      <thead><tr>${WEEKDAYS.map((day) => `<th>${day}</th>`).join('')}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div id="calendarTime">
+      time
+      <input id="calendarHours" type="number" min="0" max="23" value="${now.hours}">
+      :
+      <input id="calendarMinutes" type="number" min="0" max="59" step="5" value="${now.minutes}">
+    </div>`;
+}
+
+/** Opens the calendar under `field`, on the month that field is already showing. */
+function openCalendar(field) {
+  const at = partsOf(parseTimeExpression($(`#${field}`).value.trim()) ?? Date.now());
+  calendar = { field, year: at.year, month: at.month };
+
+  const host = document.querySelector(`.calendarHost[data-field="${field}"]`);
+  host.appendChild($('#calendar'));
+  $('#calendar').hidden = false;
+  document.querySelectorAll('.calendarToggle').forEach((button) => {
+    button.setAttribute('aria-expanded', String(button.dataset.field === field));
+  });
+  drawCalendar();
+}
+
+function closeCalendar() {
+  calendar = null;
+  $('#calendar').hidden = true;
+  document.querySelectorAll('.calendarToggle').forEach((button) => {
+    button.setAttribute('aria-expanded', 'false');
+  });
+}
+
+/** Writes the picked instant into the field and applies it, as clicking an anchor does. */
+function applyCalendar(day) {
+  const hours = Number($('#calendarHours').value);
+  const minutes = Number($('#calendarMinutes').value);
+  const picked = instantOf({ year: calendar.year, month: calendar.month, day, hours, minutes });
+
+  $(`#${calendar.field}`).value = formatLocal(picked);
+  // The field just edited is the one to keep if the pair is longer than a day.
+  applyRange({ anchor: calendar.field === 'rangeFrom' ? 'start' : 'end' });
+}
+
+function buildCalendar() {
+  document.querySelectorAll('.calendarToggle').forEach((button) => {
+    button.onclick = () => {
+      if (calendar?.field === button.dataset.field) closeCalendar();
+      else openCalendar(button.dataset.field);
+    };
+  });
+
+  $('#calendar').addEventListener('click', (event) => {
+    const stepper = event.target.closest('[data-step]');
+    if (stepper) {
+      calendar = { ...calendar, ...shiftMonth(calendar.year, calendar.month, Number(stepper.dataset.step)) };
+      drawCalendar();
+      return;
+    }
+
+    const day = event.target.closest('[data-day]');
+    if (day) applyCalendar(Number(day.dataset.day));
+  });
+
+  // Typing a time is only worth anything once a day is picked, so it redraws rather than
+  // applies: the selected day stays lit and the next click carries the new time.
+  $('#calendar').addEventListener('change', (event) => {
+    if (event.target.type === 'number') drawCalendar();
+  });
+}
+
 function buildRangePicker() {
   $('#quickRanges').innerHTML = QUICK_RANGES
     .map((quick) => `<button data-from="${quick.from}">${quick.label}</button>`)
@@ -1104,6 +1211,7 @@ function init() {
   $('#apiUrl').value = api.baseUrl;
   readUrl();
   buildRangePicker();
+  buildCalendar();
   buildRefreshControl();
 
   $('#mGraph').onclick = () => setMode('graph');

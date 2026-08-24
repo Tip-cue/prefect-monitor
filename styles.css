@@ -210,6 +210,121 @@ button.on {
   font-variant-numeric: tabular-nums;
 }
 
+/* ------------------------------ date picker ------------------------------- */
+
+.withCalendar {
+  position: relative;
+  display: flex;
+}
+
+.calendarToggle {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  bottom: 1px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 0 5px 5px 0;
+  background: none;
+  color: var(--muted);
+}
+
+.calendarToggle:hover,
+.calendarToggle[aria-expanded="true"] {
+  color: var(--ink);
+  background: var(--bg);
+}
+
+#calendar[hidden] {
+  display: none;
+}
+
+/* In flow beneath the field rather than floating over it: the panel grows, and there is
+   no second popover to keep inside the window. */
+#calendar {
+  margin-top: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+#calendarHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+#calendarHead b {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+#calendarHead button {
+  padding: 2px 7px;
+  border-color: transparent;
+  background: none;
+  color: var(--muted);
+}
+
+#calendarHead button:hover {
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+#calendar table {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+#calendar th {
+  padding: 2px 0;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+#calendar td {
+  padding: 0;
+}
+
+#calendar td button {
+  width: 26px;
+  padding: 3px 0;
+  border-color: transparent;
+  border-radius: 4px;
+  background: none;
+  justify-content: center;
+  font-size: 11px;
+}
+
+#calendar td button:hover {
+  border-color: var(--line);
+  background: var(--panel);
+}
+
+#calendar td button.on {
+  border-color: var(--accent);
+  background: #1b2a4a;
+  color: #fff;
+}
+
+#calendarTime {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+#calendarTime input {
+  width: 52px;
+  padding: 3px 6px;
+  font-variant-numeric: tabular-nums;
+}
+
 #quickRanges button,
 #startAnchors button,
 #durations button {

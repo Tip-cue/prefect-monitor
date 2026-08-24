@@ -18,6 +18,9 @@ import {
 } from './src/links.js';
 import { markPath, tooltipPosition, popoverOffset } from './src/render.js';
 import {
+  monthGrid, monthLabel, shiftMonth, daysInMonth, instantOf, partsOf, WEEKDAYS,
+} from './src/calendar.js';
+import {
   planFetch, mergeRuns, mergeLinks, unsettledRunIds, projectForStorage,
 } from './src/run-cache.js';
 import {
@@ -760,6 +763,56 @@ test('a run mark squares off the end the window cut', async (t) => {
   });
 });
 
+test('the month grid behind the date picker', async (t) => {
+  await t.test('weeks are whole, and start on Monday', () => {
+    assert.deepEqual(WEEKDAYS[0], 'Mo');
+    for (const week of monthGrid(2026, 7)) assert.equal(week.length, 7);
+  });
+
+  await t.test('a month starting on a Saturday is padded, not shifted', () => {
+    // 1 August 2026 is a Saturday: five blanks before it, Monday-first.
+    const [first] = monthGrid(2026, 7);
+    assert.deepEqual(first, [null, null, null, null, null, 1, 2]);
+  });
+
+  await t.test('a month starting on a Monday has no padding', () => {
+    // 1 June 2026 is a Monday.
+    assert.deepEqual(monthGrid(2026, 5)[0], [1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  await t.test('every day appears exactly once', () => {
+    for (const [year, month] of [[2026, 7], [2024, 1], [2026, 1], [2026, 11]]) {
+      const days = monthGrid(year, month).flat().filter((day) => day !== null);
+      assert.deepEqual(days, Array.from({ length: daysInMonth(year, month) }, (u, i) => i + 1),
+        `${monthLabel(year, month)}`);
+    }
+  });
+
+  await t.test('February knows about leap years', () => {
+    assert.equal(daysInMonth(2024, 1), 29);
+    assert.equal(daysInMonth(2026, 1), 28);
+    assert.equal(daysInMonth(2100, 1), 28, 'a century that is not a leap year');
+  });
+
+  await t.test('stepping months carries the year', () => {
+    assert.deepEqual(shiftMonth(2026, 0, -1), { year: 2025, month: 11 });
+    assert.deepEqual(shiftMonth(2026, 11, 1), { year: 2027, month: 0 });
+    assert.equal(monthLabel(2026, 7), 'August 2026');
+  });
+
+  await t.test('a day and a time round-trip through an instant', () => {
+    const parts = { year: 2026, month: 7, day: 19, hours: 9, minutes: 44 };
+    assert.deepEqual(partsOf(instantOf(parts)), parts);
+  });
+
+  await t.test('a day that does not exist resolves rather than parsing as garbage', () => {
+    // The 31st of a 30-day month: the platform rolls it, which is a real date either way.
+    const rolled = partsOf(instantOf({ year: 2026, month: 8, day: 31, hours: 12 }));
+    assert.equal(rolled.month, 9);
+    assert.equal(rolled.day, 1);
+  });
+});
+
 test('the range panel stays inside the window', async (t) => {
   const panelWidth = 520;
   const viewportWidth = 1400;
@@ -1238,14 +1291,15 @@ test('app.js still defines the functions it is wired from', () => {
   const defined = [...source.matchAll(/^(?:async )?function (\w+)/gm)].map((m) => m[1]).sort();
 
   assert.deepEqual(defined, [
-    'applyRange', 'asOfNotice', 'batchOfChain', 'buildRangePicker',
-    'buildRefreshControl', 'clearIsolation', 'closeModal', 'closeRangePanel', 'draw',
-    'drawZoomBar', 'drawnFrom', 'drawnWindow', 'highlightLinks', 'init', 'isolateChain',
-    'linkNotice', 'load', 'openModal', 'openRangePanel', 'openRunInPrefect',
-    'prefectLink', 'rangeSpan', 'readUrl', 'restoreModalFromUrl', 'runNotice',
-    'setMode', 'setRange', 'setRefresh', 'setZoom', 'showChainWindow', 'showError',
-    'showRangeError', 'showSubflows', 'syncControls', 'toggleStateFilter', 'trackWidth',
-    'typedTime', 'withAssumedLinks', 'writeUrl',
+    'applyCalendar', 'applyRange', 'asOfNotice', 'batchOfChain', 'buildCalendar',
+    'buildRangePicker', 'buildRefreshControl', 'clearIsolation', 'closeCalendar',
+    'closeModal', 'closeRangePanel', 'draw', 'drawCalendar', 'drawZoomBar', 'drawnFrom',
+    'drawnWindow', 'highlightLinks', 'init', 'isolateChain', 'linkNotice', 'load',
+    'openCalendar', 'openModal', 'openRangePanel', 'openRunInPrefect', 'prefectLink',
+    'rangeSpan', 'readUrl', 'restoreModalFromUrl', 'runNotice', 'setMode', 'setRange',
+    'setRefresh', 'setZoom', 'showChainWindow', 'showError', 'showRangeError',
+    'showSubflows', 'syncControls', 'toggleStateFilter', 'trackWidth', 'typedTime',
+    'withAssumedLinks', 'writeUrl',
   ]);
 });
 
