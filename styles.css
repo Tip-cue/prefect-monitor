@@ -339,14 +339,22 @@ button.on {
 }
 
 /* Applies the day and time as they stand — without it, a time could only be committed by
-   clicking a day, so changing just the hour was impossible. */
+   clicking a day, so changing just the hour was impossible.
+   Quiet like the calendar button it belongs with: filled in the accent it read as a
+   *selected* choice, alongside days and durations that use exactly that to mean chosen. */
 #calendarApply {
   flex: none;
   margin-left: 2px;
   padding: 3px 8px;
-  border-color: var(--accent);
-  background: #1b2a4a;
-  color: #fff;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--muted);
+}
+
+#calendarApply:hover {
+  background: var(--bg);
+  color: var(--ink);
 }
 
 #quickRanges button,
