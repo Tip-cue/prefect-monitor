@@ -273,7 +273,12 @@ button.on {
   color: var(--ink);
 }
 
+/* Fills the column and scales with it. Sized to its own content instead, the grid was
+   ~200px against a 170px column, and a flex item shrinks below content happily: the
+   weekend columns spilled over the divider into the next column. */
 #calendar table {
+  width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-variant-numeric: tabular-nums;
 }
@@ -290,7 +295,7 @@ button.on {
 }
 
 #calendar td button {
-  width: 26px;
+  width: 100%;
   padding: 3px 0;
   border-color: transparent;
   border-radius: 4px;
@@ -320,7 +325,8 @@ button.on {
 }
 
 #calendarTime input {
-  width: 52px;
+  width: 100%;
+  min-width: 0;
   padding: 3px 6px;
   font-variant-numeric: tabular-nums;
 }
