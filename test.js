@@ -16,7 +16,7 @@ import {
   resolveFlowSlug, runChain, filterToChainsWithState, runLinkPairs, sequentialChainLinks,
   batchLabelsOf, inferredLinks,
 } from './src/links.js';
-import { markPath, tooltipPosition, popoverOffset } from './src/render.js';
+import { markPath, tooltipPosition, popoverOffset, fitText } from './src/render.js';
 import {
   monthGrid, monthLabel, shiftMonth, daysInMonth, instantOf, partsOf, clampTime, WEEKDAYS,
 } from './src/calendar.js';
@@ -49,6 +49,13 @@ const run = (id, startMs, endMs, extra = {}) => ({
 });
 
 const MINUTE = 60_000;
+
+test('a lane name is cut to the room it has, ending in an ellipsis', () => {
+  const width = (text) => text.length * 10;
+  assert.equal(fitText('ABCDEF', 60, width), 'ABCDEF', 'fits exactly');
+  assert.equal(fitText('ABCDEF', 50, width), 'ABCD…', 'the ellipsis counts');
+  assert.equal(fitText('ABCDEF', 5, width), 'A…', 'never less than one character');
+});
 
 test('time axis keeps a readable number of ticks', () => {
   const ticks = timeTicks(0, 60 * MINUTE);

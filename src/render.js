@@ -17,8 +17,8 @@ const LAYOUT = {
   // Default width of the flow name column; the user can drag it (options.nameWidth).
   nameWidth: 215,
   minNameWidth: 80,
-  /** Lane names average ~8.5px a character at 12px, so this many fit in a column. */
-  nameChars: (width) => Math.max(3, Math.floor((width - 24) / 8.5)),
+  /** Left indent of a lane name, and the gap kept before the column's edge. */
+  nameInset: 24,
   /** One column per state present, plus a total, in aggregate mode's label gutter.
       Wide enough for "180 (99%)" at 11px. */
   stateColumnWidth: 78,
@@ -75,11 +75,13 @@ export function escapeHtml(value) {
  * @param {boolean} options.aggregated bin runs per lane instead of drawing each one
  * @param {(flowId: string) => string} options.flowName
  * @param {number} [options.nameWidth] width of the flow name column, px
+ * @param {(text: string) => number} [options.textWidth] measures a lane name at 12px;
+ *   the browser passes a canvas measurement, tests get an estimate
  */
 export function renderTimeline(container, runs, options) {
   const {
     from, to, edges = [], aggregated = false, flowName = String, exactLinks = [],
-    nameWidth = LAYOUT.nameWidth,
+    nameWidth = LAYOUT.nameWidth, textWidth = estimateTextWidth,
   } = options;
 
   // Only what genuinely occupies the window: runs are fetched on expected start, so
@@ -115,10 +117,10 @@ export function renderTimeline(container, runs, options) {
     aggregated
       ? aggregatedConnectors(edges, runsByFlow, geometry)
       : runLinks(pairs, geometry),
-    groupBoxes(groups, geometry, flowName),
+    groupBoxes(groups, geometry, flowName, textWidth),
     timeAxis(geometry),
     countColumns(geometry),
-    laneLabels(groups, runsByFlow, geometry, { flowName, aggregated }),
+    laneLabels(groups, runsByFlow, geometry, { flowName, aggregated, textWidth }),
     laneMarks(groups, runsByFlow, geometry, { aggregated, marks }),
     columnHandle(geometry),
   ].join('');
@@ -308,14 +310,17 @@ function countColumns(geometry) {
 }
 
 /** One rounded area per pipeline, captioned with its root flow. */
-function groupBoxes(groups, geometry, flowName) {
+function groupBoxes(groups, geometry, flowName, textWidth) {
   return geometry.boxes.map(({ group, top, bottom, captionHeight }) => {
     const box = `<rect x="4" y="${top}" width="${geometry.width - 10}" height="${bottom - top}"
                        rx="10" fill="#7f9dd10a" stroke="var(--line)"/>`;
     if (!captionHeight) return box;
 
     // Trimmed to the name column: the gutter beyond it is the counts table.
-    const caption = `${truncate(flowName(group[0]), LAYOUT.nameChars(geometry.nameWidth) - 3)} · ${group.length} flows`;
+    // Captions are 11px against the labels' 12px, so the measurement is scaled to match.
+    const suffix = ` · ${group.length} flows`;
+    const room = geometry.nameWidth - LAYOUT.nameInset - textWidth(suffix) * (11 / 12);
+    const caption = fitText(flowName(group[0]), room, (text) => textWidth(text) * (11 / 12)) + suffix;
     return `${box}<text x="14" y="${top + 13}" fill="var(--accent)" opacity=".85"
                         clip-path="url(#laneLabelClip)">${escapeHtml(caption)}</text>`;
   }).join('');
@@ -333,24 +338,26 @@ function timeAxis(geometry) {
   }).join('');
 }
 
-function laneLabels(groups, runsByFlow, geometry, { flowName, aggregated }) {
+function laneLabels(groups, runsByFlow, geometry, { flowName, aggregated, textWidth }) {
   // Aggregate mode also draws its edge connectors in the gutter, so it gets less room.
-  const maxNameLength = LAYOUT.nameChars(geometry.nameWidth) - (aggregated ? 2 : 0);
+  const room = geometry.nameWidth - LAYOUT.nameInset - (aggregated ? 16 : 0);
 
   return groups.flatMap((group) => group.map((flowId, indexInGroup) => {
     const laneRuns = runsByFlow.get(flowId);
     const name = flowName(flowId);
     const middle = geometry.laneMiddle(flowId);
 
+    // A guide from the name to its marks: with a wide name column the eye has a long way
+    // to travel, so the line is drawn to be seen.
     const divider = indexInGroup === 0 ? '' : `
       <line x1="14" y1="${geometry.laneTop(flowId)}"
             x2="${geometry.width - LAYOUT.rightPadding}" y2="${geometry.laneTop(flowId)}"
-            stroke="var(--line)" stroke-opacity=".45"/>`;
+            stroke="var(--muted)" stroke-opacity=".35"/>`;
 
     const label = `
       <text class="lanelabel" clip-path="url(#laneLabelClip)"
             data-lane="${escapeHtml(flowId)}" x="14" y="${middle + 4}">
-        ${escapeHtml(truncate(name, maxNameLength))}
+        ${escapeHtml(fitText(name, room, textWidth))}
         <title>${escapeHtml(name)} — click for sub-flows</title>
       </text>`;
 
@@ -690,6 +697,18 @@ export function statusTableHtml(runs, edges, flowName) {
 
 function truncate(text, maxLength) {
   return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
+}
+
+/** Uppercase names in the system font at 12px average about this. */
+const ESTIMATED_CHAR_PX = 7.2;
+const estimateTextWidth = (text) => text.length * ESTIMATED_CHAR_PX;
+
+/** `text` if it fits in `maxPx`, otherwise as much of it as does, ending in an ellipsis. */
+export function fitText(text, maxPx, textWidth = estimateTextWidth) {
+  if (textWidth(text) <= maxPx) return text;
+  let keep = text.length - 1;
+  while (keep > 1 && textWidth(`${text.slice(0, keep)}…`) > maxPx) keep -= 1;
+  return `${text.slice(0, keep)}…`;
 }
 
 function groupBy(items, keyOf) {

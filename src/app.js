@@ -93,6 +93,13 @@ let resizeTimer = null;
 
 const flowName = (flowId) => state.flowNames.get(flowId) || String(flowId).slice(0, 8);
 
+/** Measures a lane name in the font the chart draws it in, so names fill their column. */
+const labelMeasure = document.createElement('canvas').getContext('2d');
+const textWidth = (text) => {
+  labelMeasure.font = `12px ${getComputedStyle(document.body).fontFamily}`;
+  return labelMeasure.measureText(text).width;
+};
+
 /** The chosen auto-refresh interval in ms, 0 when it is off. */
 const refreshMs = () => REFRESH_INTERVALS.find((option) => option.label === state.refresh)?.ms ?? 0;
 
@@ -349,6 +356,7 @@ function draw() {
     aggregated: state.mode === 'agg',
     flowName,
     nameWidth: state.nameWidth,
+    textWidth,
   });
   drawZoomBar(loaded);
 }
