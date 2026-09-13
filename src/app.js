@@ -65,6 +65,10 @@ const state = {
   flowNames: new Map(),
   /** Legend filter: show only pipelines containing a run in one of these states. */
   selectedStates: new Set(),
+  /** Text filter: only flows whose name contains this (case-insensitive). */
+  flowFilter: '',
+  /** Width of the flow name column, px. Dragged, and remembered. */
+  nameWidth: Number(localStorage.nameWidth) || undefined,
   /** Shift-clicked run whose chain is isolated, if any. */
   isolatedRunId: null,
   /** Auto-refresh interval label, "Off" when disabled. */
@@ -96,11 +100,12 @@ const refreshMs = () => REFRESH_INTERVALS.find((option) => option.label === stat
 
 /** Reads the view out of the URL so a refresh — or a pasted link — restores it. */
 function readUrl() {
-  const { range, mode, states, refresh, modal, zoom, zone } = viewFromQuery(window.location.search);
+  const { range, mode, states, refresh, modal, zoom, zone, flow } = viewFromQuery(window.location.search);
   setZone(zone ?? localStorage.zone ?? 'local');
   state.range = range;
   state.mode = mode ?? localStorage.mode ?? 'graph';
   state.selectedStates = new Set(states);
+  state.flowFilter = flow;
   state.refresh = refresh ?? localStorage.refresh ?? 'Off';
   state.modal = modal;
   state.zoom = zoom;
@@ -118,6 +123,7 @@ function writeUrl({ push = false } = {}) {
     range: state.range,
     mode: state.mode,
     states: [...state.selectedStates],
+    flow: state.flowFilter,
     refresh: state.refresh,
     modal: state.modal,
     zoom: state.zoom,
@@ -332,15 +338,17 @@ function draw() {
   const { loaded, window: shown } = drawnWindow();
 
   state.isolatedRunId = null;
-  $('#legend').innerHTML = legendHtml(runs, state.selectedStates)
+  const named = filterByFlowName(runs);
+  $('#legend').innerHTML = legendHtml(named, state.selectedStates)
     + runNotice() + linkNotice() + asOfNotice();
-  renderTimeline($('#chart'), filterByState(runs), {
+  renderTimeline($('#chart'), filterByState(named), {
     from: shown.from,
     to: shown.to,
     edges,
     exactLinks,
     aggregated: state.mode === 'agg',
     flowName,
+    nameWidth: state.nameWidth,
   });
   drawZoomBar(loaded);
 }
@@ -447,6 +455,11 @@ function linkNotice() {
 
 const filterByState = (runs) =>
   filterToChainsWithState(runs, state.selectedStates, state.view?.exactLinks ?? []);
+
+const filterByFlowName = (runs) => {
+  const needle = state.flowFilter.trim().toLowerCase();
+  return needle ? runs.filter((run) => flowName(run.flow_id).toLowerCase().includes(needle)) : runs;
+};
 
 function toggleStateFilter(stateLabel) {
   if (!stateLabel) state.selectedStates.clear();
@@ -703,10 +716,21 @@ document.addEventListener('mousemove', (event) => {
  */
 let drag = null;
 
+let columnDrag = null;
+
 $('#chart').addEventListener('mousedown', (event) => {
   const plot = $('#chart').timelinePlot;
   // Shift is isolate-the-chain and right-click opens it; neither is a drag.
   if (!plot || event.button !== 0 || event.shiftKey) return;
+
+  // The grab strip on the name column's edge resizes the column instead of selecting time.
+  if (event.target.classList.contains('colHandle')) {
+    const start = state.nameWidth ?? event.target.getBBox().x + 4;
+    columnDrag = { startX: event.clientX, start };
+    document.body.classList.add('dragging');
+    event.preventDefault();
+    return;
+  }
 
   const svg = $('#chart').querySelector('svg');
   const x = event.clientX - svg.getBoundingClientRect().left;
@@ -716,6 +740,11 @@ $('#chart').addEventListener('mousedown', (event) => {
 });
 
 document.addEventListener('mousemove', (event) => {
+  if (columnDrag) {
+    state.nameWidth = Math.max(80, columnDrag.start + event.clientX - columnDrag.startX);
+    draw();
+    return;
+  }
   if (!drag) return;
   const svg = $('#chart').querySelector('svg');
   if (!svg) return;
@@ -740,6 +769,13 @@ document.addEventListener('mousemove', (event) => {
 });
 
 document.addEventListener('mouseup', () => {
+  if (columnDrag) {
+    columnDrag = null;
+    document.body.classList.remove('dragging');
+    localStorage.nameWidth = state.nameWidth;
+    suppressClick = true; // letting go over a lane label must not open it
+    return;
+  }
   if (!drag) return;
   const finished = drag;
   drag = null;
@@ -965,6 +1001,8 @@ function syncControls() {
 
   $('#zoneLabel').textContent = zoneLabel();
   $('#zoneToggle').classList.toggle('on', getZone() === 'utc');
+
+  $('#flowFilter').value = state.flowFilter;
 
   $('#refreshIntervalLabel').textContent = state.refresh;
   $('#refreshIntervalButton').classList.toggle('on', state.refresh !== 'Off');
@@ -1267,6 +1305,11 @@ function init() {
 
   $('#mGraph').onclick = () => setMode('graph');
   $('#mAgg').onclick = () => setMode('agg');
+  $('#flowFilter').oninput = () => {
+    state.flowFilter = $('#flowFilter').value;
+    writeUrl();
+    draw();
+  };
   $('#refresh').onclick = () => load({ force: true });
 
   // A display setting: nothing is refetched, everything is relabelled. The range keeps its

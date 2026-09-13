@@ -715,11 +715,13 @@ test('the view round-trips through the URL', async (t) => {
       range: { from: '2026-08-19 09:44', to: '2026-08-19 15:44' },
       mode: 'graph',
       states: ['Failed'],
+      flow: 'planetiq',
     };
     const back = viewFromQuery(viewToQuery(view));
     assert.deepEqual(back.range, view.range);
     assert.equal(back.mode, 'graph');
     assert.deepEqual(back.states, ['Failed']);
+    assert.equal(back.flow, 'planetiq');
   });
 
   await t.test('a link whose range has since aged past the cap comes back capped', () => {

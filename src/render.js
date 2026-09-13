@@ -14,9 +14,11 @@ import { runLinkPairs } from './links.js';
 import { formatFull, formatTime } from './zone.js';
 
 const LAYOUT = {
-  // Wide enough for a truncated flow name in caps: these average ~8px a character at
-  // 12px, so 22 characters plus the 14px indent needs ~190.
+  // Default width of the flow name column; the user can drag it (options.nameWidth).
   nameWidth: 215,
+  minNameWidth: 80,
+  /** Lane names average ~8.5px a character at 12px, so this many fit in a column. */
+  nameChars: (width) => Math.max(3, Math.floor((width - 24) / 8.5)),
   /** One column per state present, plus a total, in aggregate mode's label gutter.
       Wide enough for "180 (99%)" at 11px. */
   stateColumnWidth: 78,
@@ -72,10 +74,12 @@ export function escapeHtml(value) {
  * @param {{src: string, dst: string, name: string}[]} options.edges
  * @param {boolean} options.aggregated bin runs per lane instead of drawing each one
  * @param {(flowId: string) => string} options.flowName
+ * @param {number} [options.nameWidth] width of the flow name column, px
  */
 export function renderTimeline(container, runs, options) {
   const {
     from, to, edges = [], aggregated = false, flowName = String, exactLinks = [],
+    nameWidth = LAYOUT.nameWidth,
   } = options;
 
   // Only what genuinely occupies the window: runs are fetched on expected start, so
@@ -103,11 +107,11 @@ export function renderTimeline(container, runs, options) {
 
   // The counts table is aggregate mode's job; the graph shows each run's state directly.
   const states = aggregated ? [...new Set(visible.map(stateName))].sort(compareStateNames) : [];
-  const geometry = computeGeometry(container, groups, runsByFlow, { from, to, aggregated, states });
+  const geometry = computeGeometry(container, groups, runsByFlow, { from, to, aggregated, states, nameWidth });
   const marks = [];
 
   const svg = [
-    svgDefs(geometry.height),
+    svgDefs(geometry),
     aggregated
       ? aggregatedConnectors(edges, runsByFlow, geometry)
       : runLinks(pairs, geometry),
@@ -116,6 +120,7 @@ export function renderTimeline(container, runs, options) {
     countColumns(geometry),
     laneLabels(groups, runsByFlow, geometry, { flowName, aggregated }),
     laneMarks(groups, runsByFlow, geometry, { aggregated, marks }),
+    columnHandle(geometry),
   ].join('');
 
   container.innerHTML = `<svg width="${geometry.width}" height="${geometry.height}">${svg}</svg>`;
@@ -145,13 +150,14 @@ function flowEdgesFrom(pairs) {
  * Works out where everything goes: lane heights (which depend on how many runs
  * overlap), group boxes, and the time-to-x mapping.
  */
-function computeGeometry(container, groups, runsByFlow, { from, to, aggregated, states }) {
+function computeGeometry(container, groups, runsByFlow, { from, to, aggregated, states, nameWidth }) {
+  nameWidth = Math.max(LAYOUT.minNameWidth, nameWidth);
   const width = Math.max(container.clientWidth - 16, LAYOUT.minChartWidth);
   // In aggregate mode the gutter is a table: the flow name, a column per state, then
   // the row total. Everywhere else it is just the name.
   const labelWidth = states.length === 0
-    ? LAYOUT.nameWidth
-    : LAYOUT.nameWidth + states.length * LAYOUT.stateColumnWidth
+    ? nameWidth
+    : nameWidth + states.length * LAYOUT.stateColumnWidth
       + LAYOUT.totalColumnWidth + LAYOUT.connectorWidth;
   const markHeight = aggregated ? LAYOUT.aggregatedMarkHeight : LAYOUT.runMarkHeight;
   const subRowHeight = markHeight + LAYOUT.subRowGap;
@@ -200,8 +206,9 @@ function computeGeometry(container, groups, runsByFlow, { from, to, aggregated, 
     labelWidth,
     plotWidth,
     states,
+    nameWidth,
     /** Right edge of the state column at `index`, or of the total column at states.length. */
-    columnRight: (index) => LAYOUT.nameWidth
+    columnRight: (index) => nameWidth
       + (index + 1) * LAYOUT.stateColumnWidth
       + (index === states.length ? LAYOUT.totalColumnWidth - LAYOUT.stateColumnWidth : 0),
     markHeight,
@@ -221,7 +228,7 @@ function computeGeometry(container, groups, runsByFlow, { from, to, aggregated, 
   };
 }
 
-function svgDefs(height) {
+function svgDefs({ height, nameWidth }) {
   return `
     <defs>
       <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -231,7 +238,7 @@ function svgDefs(height) {
            is drawn hard against the plot's left edge, so an over-long name would
            otherwise collide with it. -->
       <clipPath id="laneLabelClip">
-        <rect x="0" y="0" width="${LAYOUT.nameWidth - 10}" height="${height}"/>
+        <rect x="0" y="0" width="${nameWidth - 10}" height="${height}"/>
       </clipPath>
     </defs>`;
 }
@@ -308,7 +315,7 @@ function groupBoxes(groups, geometry, flowName) {
     if (!captionHeight) return box;
 
     // Trimmed to the name column: the gutter beyond it is the counts table.
-    const caption = `${truncate(flowName(group[0]), 19)} · ${group.length} flows`;
+    const caption = `${truncate(flowName(group[0]), LAYOUT.nameChars(geometry.nameWidth) - 3)} · ${group.length} flows`;
     return `${box}<text x="14" y="${top + 13}" fill="var(--accent)" opacity=".85"
                         clip-path="url(#laneLabelClip)">${escapeHtml(caption)}</text>`;
   }).join('');
@@ -328,7 +335,7 @@ function timeAxis(geometry) {
 
 function laneLabels(groups, runsByFlow, geometry, { flowName, aggregated }) {
   // Aggregate mode also draws its edge connectors in the gutter, so it gets less room.
-  const maxNameLength = aggregated ? 20 : 22;
+  const maxNameLength = LAYOUT.nameChars(geometry.nameWidth) - (aggregated ? 2 : 0);
 
   return groups.flatMap((group) => group.map((flowId, indexInGroup) => {
     const laneRuns = runsByFlow.get(flowId);
@@ -391,6 +398,15 @@ function laneCounts(laneRuns, flowId, geometry, middle) {
           text-anchor="end" opacity=".7">${laneRuns.length}</text>`;
 
   return cells + total;
+}
+
+/**
+ * A grab strip on the name column's right edge. Dragging it is app.js's job (it needs the
+ * document's mouse events); this only marks where to grab.
+ */
+function columnHandle(geometry) {
+  return `<rect class="colHandle" x="${geometry.nameWidth - 4}" y="${LAYOUT.axisHeight - 6}"
+                width="8" height="${geometry.height - LAYOUT.axisHeight}" fill="transparent"/>`;
 }
 
 /**

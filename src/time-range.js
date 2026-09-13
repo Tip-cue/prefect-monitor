@@ -218,6 +218,7 @@ export function viewFromQuery(search) {
     range: from && to ? capRange({ from, to }) : { ...DEFAULT_RANGE },
     mode: params.get('mode') === 'agg' || params.get('mode') === 'graph' ? params.get('mode') : null,
     states: (params.get('states') ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+    flow: params.get('flow') ?? '',
     refresh: params.get('refresh'),
     modal: modalFromParams(params),
     zoom: zoomFromParams(params),
@@ -254,12 +255,13 @@ function modalFromParams(params) {
 }
 
 /** The query string for a view — everything needed to reproduce it from a paste. */
-export function viewToQuery({ range, mode, states, refresh, modal, zoom, zone }) {
+export function viewToQuery({ range, mode, states, flow, refresh, modal, zoom, zone }) {
   const params = new URLSearchParams();
   params.set('from', range.from);
   params.set('to', range.to);
   if (mode) params.set('mode', mode);
   if (states?.length) params.set('states', states.join(','));
+  if (flow) params.set('flow', flow);
   if (refresh && refresh !== 'Off') params.set('refresh', refresh);
   if (modal && MODAL_PARAMS[modal.kind]) params.set(MODAL_PARAMS[modal.kind], modal.id);
   if (zone === 'utc') params.set('tz', 'utc');
