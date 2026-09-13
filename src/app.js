@@ -93,11 +93,17 @@ let resizeTimer = null;
 
 const flowName = (flowId) => state.flowNames.get(flowId) || String(flowId).slice(0, 8);
 
-/** Measures a lane name in the font the chart draws it in, so names fill their column. */
-const labelMeasure = document.createElement('canvas').getContext('2d');
+/**
+ * Measures a lane name exactly as the chart draws it: an SVG text with the label's own
+ * class, kept off to the side. A canvas measurement drifted a few percent from the real
+ * glyphs and left a blank strip before the column's edge.
+ */
+const labelRuler = document.body.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'svg'));
+labelRuler.setAttribute('style', 'position:absolute;left:-9999px;top:0;width:1px;height:1px;visibility:hidden');
+labelRuler.innerHTML = '<text class="lanelabel"></text>';
 const textWidth = (text) => {
-  labelMeasure.font = `12px ${getComputedStyle(document.body).fontFamily}`;
-  return labelMeasure.measureText(text).width;
+  labelRuler.firstChild.textContent = text;
+  return labelRuler.firstChild.getComputedTextLength();
 };
 
 /** The chosen auto-refresh interval in ms, 0 when it is off. */

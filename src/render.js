@@ -17,8 +17,8 @@ const LAYOUT = {
   // Default width of the flow name column; the user can drag it (options.nameWidth).
   nameWidth: 215,
   minNameWidth: 80,
-  /** Left indent of a lane name, and the gap kept before the column's edge. */
-  nameInset: 24,
+  /** A lane name starts 14px in and must end 12px short of the column's edge. */
+  nameInset: 26,
   /** One column per state present, plus a total, in aggregate mode's label gutter.
       Wide enough for "180 (99%)" at 11px. */
   stateColumnWidth: 78,
@@ -408,12 +408,16 @@ function laneCounts(laneRuns, flowId, geometry, middle) {
 }
 
 /**
- * A grab strip on the name column's right edge. Dragging it is app.js's job (it needs the
- * document's mouse events); this only marks where to grab.
+ * The name column's right edge: a line always drawn, so the names read as a column, and
+ * a grab strip over it. Dragging is app.js's job (it needs the document's mouse events).
  */
 function columnHandle(geometry) {
-  return `<rect class="colHandle" x="${geometry.nameWidth - 4}" y="${LAYOUT.axisHeight - 6}"
-                width="8" height="${geometry.height - LAYOUT.axisHeight}" fill="transparent"/>`;
+  const x = geometry.nameWidth - 6;
+  const top = LAYOUT.axisHeight - 6;
+  const height = geometry.height - LAYOUT.axisHeight;
+  return `
+    <line x1="${x}" y1="${top}" x2="${x}" y2="${top + height}" stroke="var(--muted)" stroke-opacity=".35"/>
+    <rect class="colHandle" x="${x - 4}" y="${top}" width="8" height="${height}" fill="transparent"/>`;
 }
 
 /**
@@ -703,12 +707,21 @@ function truncate(text, maxLength) {
 const ESTIMATED_CHAR_PX = 7.2;
 const estimateTextWidth = (text) => text.length * ESTIMATED_CHAR_PX;
 
-/** `text` if it fits in `maxPx`, otherwise as much of it as does, ending in an ellipsis. */
+/**
+ * `text` if it fits in `maxPx`, otherwise as much of it as does, ending in an ellipsis.
+ *
+ * Starts from a proportional guess and steps from there, so a measurement that costs a
+ * layout is taken a few times per name rather than once per character.
+ */
 export function fitText(text, maxPx, textWidth = estimateTextWidth) {
-  if (textWidth(text) <= maxPx) return text;
-  let keep = text.length - 1;
-  while (keep > 1 && textWidth(`${text.slice(0, keep)}…`) > maxPx) keep -= 1;
-  return `${text.slice(0, keep)}…`;
+  const full = textWidth(text);
+  if (full <= maxPx) return text;
+
+  const cut = (keep) => `${text.slice(0, keep)}…`;
+  let keep = Math.max(1, Math.min(text.length - 1, Math.floor((text.length * maxPx) / full)));
+  while (keep > 1 && textWidth(cut(keep)) > maxPx) keep -= 1;
+  while (keep < text.length - 1 && textWidth(cut(keep + 1)) <= maxPx) keep += 1;
+  return cut(keep);
 }
 
 function groupBy(items, keyOf) {
