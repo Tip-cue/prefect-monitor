@@ -276,6 +276,10 @@ just narrows. Under a few pixels of movement it stays a click and opens the run 
 **Scroll over the plot** to zoom about the pointer — up to zoom in, down to zoom out, as
 maps do, and out past the whole range is the same as the ✕. The label gutter still scrolls the page.
 
+The lanes are those of the whole range, not of the slice: zooming or panning only moves
+the marks, never adds or drops a lane or changes a height, so the chart holds still under
+the bar and a slice with nothing in it shows empty lanes rather than no chart.
+
 Zooming never touches the range — the picker still says "Last 6 hours" — so a CloudWatch-
 style scroll bar appears under the plot showing which slice you are in: drag the thumb to
 move through the range, ✕ (or Escape) to come back out. Zoom again inside a zoom and the

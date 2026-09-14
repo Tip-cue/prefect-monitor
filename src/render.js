@@ -79,41 +79,48 @@ export function escapeHtml(value) {
  *   column fits its longest name
  * @param {(text: string) => number} [options.textWidth] measures a lane name at 12px;
  *   the browser passes a canvas measurement, tests get an estimate
- * @param {boolean} [options.zoomed] the window is a zoom, so an empty one has a way out
+ * @param {{from: number, to: number}} [options.range] the span the lanes are taken from,
+ *   when the window is a zoom into a wider loaded range; defaults to the window
  */
 export function renderTimeline(container, runs, options) {
   const {
     from, to, edges = [], aggregated = false, flowName = String, exactLinks = [],
-    nameWidth, textWidth = estimateTextWidth,
+    nameWidth, textWidth = estimateTextWidth, range = { from, to },
   } = options;
 
-  // Only what genuinely occupies the window: runs are fetched on expected start, so
+  // Lanes, their order, their heights and the count columns come from everything in
+  // `range` — the whole loaded span; marks come from what falls in the window. So a zoom
+  // or a pan never adds or drops a lane or changes a height: the chart holds still under
+  // the zoom bar, and a slice with nothing in it shows empty lanes rather than no chart.
+  // Only what genuinely occupies the span counts: runs are fetched on expected start, so
   // one that was scheduled inside it but began after it does not belong here.
-  const visible = runs.filter((run) => overlapsWindow(run, from, to));
+  const laneRuns = runs.filter((run) => overlapsWindow(run, range.from, range.to));
+  const visible = laneRuns.filter((run) => overlapsWindow(run, from, to));
+  const shown = new Set(visible.map((run) => run.id));
 
-  const runsByFlow = groupBy(visible, (run) => run.flow_id);
+  const runsByFlow = groupBy(laneRuns, (run) => run.flow_id);
+  const visibleByFlow = groupBy(visible, (run) => run.flow_id);
 
   // Computed before the lanes are ordered, because the ordering follows them. Also
   // needed in aggregate mode, where they are not drawn: shift-click and right-click
   // walk chains in both modes.
-  const pairs = runLinkPairs(visible, exactLinks);
+  const allPairs = runLinkPairs(laneRuns, exactLinks);
+  const pairs = allPairs.filter(([upstream, downstream]) => shown.has(upstream.id) && shown.has(downstream.id));
 
   // Lane order follows what is actually linked. The sub-flow view passes no flow-level
   // edges — its links are between runs — so without this its lanes fell back to
   // alphabetical and read out of sequence.
-  const groups = laneGroups([...runsByFlow.keys()], [...edges, ...flowEdgesFrom(pairs)], flowName);
+  const groups = laneGroups([...runsByFlow.keys()], [...edges, ...flowEdgesFrom(allPairs)], flowName);
 
   if (groups.length === 0) {
-    container.innerHTML = `<p class="muted" style="padding:16px">${
-      options.zoomed ? 'no flow runs in this slice — scroll down, ✕ below, or Escape to zoom back out' : 'no flow runs in this window'
-    }</p>`;
+    container.innerHTML = '<p class="muted" style="padding:16px">no flow runs in this window</p>';
     container.timelineMarks = [];
     container.timelinePlot = null; // nothing drawn, so there is nothing to drag across
     return;
   }
 
   // The counts table is aggregate mode's job; the graph shows each run's state directly.
-  const states = aggregated ? [...new Set(visible.map(stateName))].sort(compareStateNames) : [];
+  const states = aggregated ? [...new Set(laneRuns.map(stateName))].sort(compareStateNames) : [];
   const geometry = computeGeometry(container, groups, runsByFlow, {
     from, to, aggregated, states,
     nameWidth: nameWidth ?? fittedNameWidth(groups.flat().map(flowName), textWidth, aggregated),
@@ -128,8 +135,8 @@ export function renderTimeline(container, runs, options) {
     groupBoxes(groups, geometry, flowName, textWidth),
     timeAxis(geometry),
     countColumns(geometry),
-    laneLabels(groups, runsByFlow, geometry, { flowName, aggregated, textWidth }),
-    laneMarks(groups, runsByFlow, geometry, { aggregated, marks }),
+    laneLabels(groups, visibleByFlow, geometry, { flowName, aggregated, textWidth }),
+    laneMarks(groups, visibleByFlow, geometry, { aggregated, marks }),
     columnHandle(geometry),
   ].join('');
 
@@ -357,7 +364,7 @@ function laneLabels(groups, runsByFlow, geometry, { flowName, aggregated, textWi
   const room = geometry.nameWidth - LAYOUT.nameInset - (aggregated ? 16 : 0);
 
   return groups.flatMap((group) => group.map((flowId, indexInGroup) => {
-    const laneRuns = runsByFlow.get(flowId);
+    const laneRuns = runsByFlow.get(flowId) ?? []; // nothing of it in this window
     const name = flowName(flowId);
     const middle = geometry.laneMiddle(flowId);
 
@@ -497,8 +504,8 @@ function laneMarks(groups, runsByFlow, geometry, { aggregated, marks }) {
   };
 
   return groups.flat().map((flowId) => (aggregated
-    ? aggregatedLane(runsByFlow.get(flowId), flowId, geometry, drawMark)
-    : runLane(runsByFlow.get(flowId), flowId, geometry, drawMark)
+    ? aggregatedLane(runsByFlow.get(flowId) ?? [], flowId, geometry, drawMark)
+    : runLane(runsByFlow.get(flowId) ?? [], flowId, geometry, drawMark)
   )).join('');
 }
 

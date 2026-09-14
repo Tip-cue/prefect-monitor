@@ -16,7 +16,7 @@ import {
   resolveFlowSlug, runChain, filterToChainsWithState, runLinkPairs, sequentialChainLinks,
   batchLabelsOf, inferredLinks,
 } from './src/links.js';
-import { markPath, tooltipPosition, popoverOffset, fitText } from './src/render.js';
+import { markPath, tooltipPosition, popoverOffset, fitText, renderTimeline } from './src/render.js';
 import {
   monthGrid, monthLabel, shiftMonth, daysInMonth, instantOf, partsOf, clampTime, WEEKDAYS,
 } from './src/calendar.js';
@@ -49,6 +49,37 @@ const run = (id, startMs, endMs, extra = {}) => ({
 });
 
 const MINUTE = 60_000;
+
+test('a zoom moves the marks and leaves the lanes alone', () => {
+  const now = Date.parse('2026-08-19T12:00:00Z');
+  const hour = 3600_000;
+  const runs = [
+    run('a1', now - 5 * hour, now - 4.5 * hour, { flow_id: 'A', state_type: 'COMPLETED', state_name: 'Completed' }),
+    run('a2', now - 4.8 * hour, now - 4.2 * hour, { flow_id: 'A', state_type: 'COMPLETED', state_name: 'Completed' }), // overlaps a1: two rows
+    run('b1', now - 1 * hour, now - 0.5 * hour, { flow_id: 'B', state_type: 'FAILED', state_name: 'Failed' }),
+  ];
+  const draw = (from, to, range) => {
+    const container = { clientWidth: 1200 };
+    renderTimeline(container, runs, { from, to, range, exactLinks: [] });
+    const lanes = [...container.innerHTML.matchAll(/data-lane="(\w+)"/g)].map((m) => m[1]);
+    const height = Number(container.innerHTML.match(/<svg width="\d+" height="(\d+)"/)[1]);
+    return { lanes, height, marks: container.timelineMarks.length };
+  };
+  const loaded = { from: now - 6 * hour, to: now };
+  const whole = draw(loaded.from, loaded.to, loaded);
+  const sliceWithOnlyB = draw(now - 2 * hour, now, loaded);
+  const sliceWithNothing = draw(now - 3 * hour, now - 2 * hour, loaded);
+
+  assert.deepEqual(whole.lanes, ['A', 'B']);
+  assert.deepEqual(sliceWithOnlyB.lanes, whole.lanes, 'A stays even with nothing of it in the slice');
+  assert.equal(sliceWithOnlyB.height, whole.height, 'A keeps its two rows, so nothing jumps');
+  assert.equal(sliceWithOnlyB.marks, 1);
+  assert.deepEqual(sliceWithNothing.lanes, whole.lanes, 'an empty slice is empty lanes, not no chart');
+  assert.equal(sliceWithNothing.marks, 0);
+
+  // Without a range the window is the range, as the pop-ups use it.
+  assert.deepEqual(draw(now - 2 * hour, now).lanes, ['B']);
+});
 
 test('a lane name is cut to the room it has, ending in an ellipsis', () => {
   const width = (text) => text.length * 10;
