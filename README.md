@@ -93,12 +93,13 @@ letting one left behind by a dev session on the same hostname quietly redirect t
 
 ## The view lives in the URL
 
-Everything that defines what you are looking at — range, mode, state filter, refresh
-interval, and any open pop-up — is in the query string, so a refresh keeps it and a
-pasted link reproduces it for someone else:
+Everything that defines what you are looking at — range, mode, state filter, flow name
+filter, refresh interval, and any open pop-up — is in the query string, so a refresh keeps
+it and a pasted link reproduces it for someone else:
 
 ```
 /?from=now-6h&to=now&mode=agg&states=Failed&refresh=30s
+/?from=now-6h&to=now&flow=planetiq              only flows whose name contains this
 /?from=now-24h&to=now&subflows=<run-id>     a sub-flow pop-up
 /?from=now-24h&to=now&chain=<run-id>        a chain window
 ```
@@ -107,6 +108,11 @@ The pop-up matters for **Back**: clicking a run navigates to Prefect in this tab
 opening a pop-up pushes a history entry and coming back reopens it rather than landing on
 a bare chart. Everything else replaces, so changing a range does not fill the history. A
 run that is no longer in the window is fetched by id rather than given up on.
+
+The one thing kept out of the URL is the width of the flow name column. It fits the
+longest name on screen; drag its right edge to change that, and the browser remembers the
+width for you (double-click the edge to go back to fitting). It is a preference of the
+screen it is on, not part of what a link says.
 
 The range is stored as **expressions, not timestamps**, the way Grafana and Kibana do
 it: `now-6h` → `now` still means "the last six hours" tomorrow, where a resolved pair

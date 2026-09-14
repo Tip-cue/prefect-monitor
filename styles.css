@@ -663,6 +663,20 @@ svg text {
   text-decoration: underline;
 }
 
+/* Drag the name column's edge to widen it. */
+.colHandle {
+  cursor: col-resize;
+}
+
+.colHandle:hover {
+  fill: var(--accent);
+  fill-opacity: 0.35;
+}
+
+#flowFilter {
+  width: 150px;
+}
+
 .run {
   cursor: pointer;
 }
