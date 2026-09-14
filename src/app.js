@@ -869,13 +869,23 @@ $('#zoomReset').addEventListener('click', () => setZoom(null));
 // The wheel over the plot zooms about the pointer: up to zoom in, down to zoom out, and out
 // past the loaded range is the same as the ✕. Over the label gutter it still scrolls the
 // page, so a tall chart can be scrolled from there.
-$('#chart').addEventListener('wheel', (event) => {
-  const plot = $('#chart').timelinePlot;
-  if (!plot || !state.view) return;
+document.addEventListener('wheel', (event) => {
+  if (!state.view || event.target.closest('header, #modal')) return;
 
-  const svg = $('#chart').querySelector('svg');
-  const x = event.clientX - svg.getBoundingClientRect().left;
-  if (x < plot.left) return;
+  let plot = $('#chart').timelinePlot;
+  let x;
+  if (plot) {
+    const svg = $('#chart').querySelector('svg');
+    x = event.clientX - svg.getBoundingClientRect().left;
+    if (x < plot.left) return;
+  } else if (state.zoom) {
+    // Nothing is drawn to point at — the slice is empty — so the whole page is the zoom
+    // surface, anchored on the slice's middle, and scrolling out is the way back.
+    plot = { left: 0, width: 1, from: state.zoom.from, to: state.zoom.to };
+    x = 0.5;
+  } else {
+    return;
+  }
 
   event.preventDefault();
   const { loaded } = drawnWindow();

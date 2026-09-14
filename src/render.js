@@ -105,7 +105,7 @@ export function renderTimeline(container, runs, options) {
 
   if (groups.length === 0) {
     container.innerHTML = `<p class="muted" style="padding:16px">${
-      options.zoomed ? 'no flow runs in this slice — ✕ below, or Escape, to zoom back out' : 'no flow runs in this window'
+      options.zoomed ? 'no flow runs in this slice — scroll down, ✕ below, or Escape to zoom back out' : 'no flow runs in this window'
     }</p>`;
     container.timelineMarks = [];
     container.timelinePlot = null; // nothing drawn, so there is nothing to drag across
