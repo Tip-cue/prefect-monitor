@@ -18,7 +18,7 @@ import {
   CACHE_FRESH_MS, planFetch, unsettledRunIds, mergeRuns, mergeLinks,
 } from './run-cache.js';
 import {
-  DRAG_THRESHOLD_PX, clampZoom, thumbGeometry, zoomFromDrag, zoomFromThumb,
+  DRAG_THRESHOLD_PX, clampZoom, thumbGeometry, zoomFromDrag, zoomFromThumb, zoomFromWheel,
 } from './zoom.js';
 import { readCache, writeCache, clearCache } from './browser-cache.js';
 import { apiUrlEditable, resolveApiUrl, resolveBatchKeys } from './settings.js';
@@ -861,6 +861,25 @@ document.addEventListener('mouseup', () => {
 });
 
 $('#zoomReset').addEventListener('click', () => setZoom(null));
+
+// The wheel over the plot zooms about the pointer: down to zoom in, up to zoom out, and out
+// past the loaded range is the same as the ✕. Over the label gutter it still scrolls the
+// page, so a tall chart can be scrolled from there.
+$('#chart').addEventListener('wheel', (event) => {
+  const plot = $('#chart').timelinePlot;
+  if (!plot || !state.view) return;
+
+  const svg = $('#chart').querySelector('svg');
+  const x = event.clientX - svg.getBoundingClientRect().left;
+  if (x < plot.left) return;
+
+  event.preventDefault();
+  const { loaded } = drawnWindow();
+  const zoom = zoomFromWheel(plot, loaded, x, event.deltaY);
+  if (zoom?.from === plot.from && zoom?.to === plot.to) return; // nothing changes
+  $('#tooltip').style.display = 'none'; // the marks move under the cursor
+  setZoom(zoom);
+}, { passive: false });
 
 /** Set when a drag ends, so the click that follows the release does not also fire. */
 let suppressClick = false;

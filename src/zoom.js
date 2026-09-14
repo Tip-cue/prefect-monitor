@@ -56,6 +56,42 @@ export function clampZoom(zoom, from, to) {
 }
 
 /**
+ * How fast the wheel zooms: the span is scaled by e^(-deltaY × this). One notch of a mouse
+ * wheel (deltaY ≈ 100) narrows it to ~80%; a trackpad's small deltas make it continuous.
+ * Positive deltaY (scrolling down) zooms in — flip the sign here to change that.
+ */
+export const WHEEL_ZOOM_RATE = 0.002;
+
+/** No single wheel event scales the span by more than this, however large its delta. */
+const MAX_WHEEL_FACTOR = 2;
+
+/**
+ * The zoom a wheel movement asks for: the shown span scaled about the instant under the
+ * pointer, so what the cursor points at stays where it is.
+ *
+ * Widening past the loaded range means all the way out — null, the same as the ✕ — so
+ * scrolling out keeps going until there is no zoom left, rather than stopping just short.
+ *
+ * @param {{left: number, width: number, from: number, to: number}} plot what is shown
+ * @param {{from: number, to: number}} loaded the range the zoom sits inside
+ * @param {number} x pointer position, pixels from the left edge of the chart SVG
+ * @param {number} deltaY the wheel event's vertical delta
+ * @returns {{from: number, to: number}|null} null for "no zoom"
+ */
+export function zoomFromWheel(plot, loaded, x, deltaY) {
+  const shown = plot.to - plot.from;
+  const factor = Math.min(MAX_WHEEL_FACTOR, Math.max(1 / MAX_WHEEL_FACTOR, Math.exp(-deltaY * WHEEL_ZOOM_RATE)));
+  const span = shown * factor;
+
+  if (span >= loaded.to - loaded.from) return null;
+  if (span < MIN_ZOOM_MS) return { from: plot.from, to: plot.to }; // as deep as it goes
+
+  const anchor = timeAt(plot, x);
+  const from = anchor - ((anchor - plot.from) / shown) * span;
+  return clampZoom({ from, to: from + span }, loaded.from, loaded.to);
+}
+
+/**
  * Where the scroll bar's thumb sits: the zoom drawn against the whole range, the way
  * CloudWatch shows which slice of the period you are looking at.
  *

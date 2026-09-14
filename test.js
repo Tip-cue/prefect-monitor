@@ -25,7 +25,7 @@ import {
   planFetch, mergeRuns, mergeLinks, unsettledRunIds, projectForStorage,
 } from './src/run-cache.js';
 import {
-  MIN_THUMB_PX, clampZoom, thumbGeometry, zoomFromDrag, zoomFromThumb,
+  MIN_THUMB_PX, clampZoom, thumbGeometry, zoomFromDrag, zoomFromThumb, zoomFromWheel,
 } from './src/zoom.js';
 import {
   runUrlFromApiBase, PrefectApi, batchFromPayload, BATCH_PAYLOAD_KEYS,
@@ -1329,6 +1329,32 @@ test('dragging out a smaller time range', async (t) => {
 
   await t.test('a twitch is refused rather than zoomed to nothing', () => {
     assert.equal(zoomFromDrag(plot, 500, 500), null);
+  });
+
+  await t.test('the wheel zooms about the pointer', () => {
+    const loaded = { from: plot.from, to: plot.to };
+    // Pointer at 30% across the plot, one notch down: the span narrows, and the instant
+    // under the pointer stays at 30% of the new span.
+    const x = 215 + 300;
+    const before = plot.from + 0.3 * 6 * hour;
+    const zoom = zoomFromWheel(plot, loaded, x, 100);
+    assert.ok(zoom.to - zoom.from < 6 * hour && zoom.to - zoom.from > 4 * hour, 'about 80%');
+    assert.ok(Math.abs((zoom.from + 0.3 * (zoom.to - zoom.from)) - before) < 1, 'anchored');
+
+    // Wheel up from inside a zoom widens it; past the loaded range it is no zoom at all.
+    const inner = { ...plot, from: now - 3 * hour, to: now - 2 * hour };
+    const wider = zoomFromWheel(inner, loaded, 215 + 500, -100);
+    assert.ok(wider.to - wider.from > hour);
+    assert.ok(wider.from >= loaded.from && wider.to <= loaded.to, 'kept inside the range');
+    assert.equal(zoomFromWheel(plot, loaded, 215 + 500, -100), null, 'out past the range is the ✕');
+
+    // A huge trackpad delta is capped, so one flick cannot leap from 6h to nothing.
+    const flick = zoomFromWheel(plot, loaded, 215 + 500, 5000);
+    assert.ok(flick.to - flick.from >= 3 * hour, 'at most halved');
+
+    // At the floor it stays where it is rather than collapsing.
+    const tiny = { ...plot, from: now - 1000, to: now };
+    assert.deepEqual(zoomFromWheel(tiny, loaded, 215 + 500, 100), { from: tiny.from, to: tiny.to });
   });
 });
 
