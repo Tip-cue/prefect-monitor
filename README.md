@@ -273,8 +273,8 @@ otherwise reads as a freeze.
 **Drag across the plot** to zoom into the span you dragged, the way Grafana's charts do.
 It costs nothing: the runs and links for the whole range are already loaded, so the axis
 just narrows. Under a few pixels of movement it stays a click and opens the run instead.
-**Scroll over the plot** to zoom about the pointer — down to zoom in, up to zoom out, and
-out past the whole range is the same as the ✕. The label gutter still scrolls the page.
+**Scroll over the plot** to zoom about the pointer — up to zoom in, down to zoom out, as
+maps do, and out past the whole range is the same as the ✕. The label gutter still scrolls the page.
 
 Zooming never touches the range — the picker still says "Last 6 hours" — so a CloudWatch-
 style scroll bar appears under the plot showing which slice you are in: drag the thumb to

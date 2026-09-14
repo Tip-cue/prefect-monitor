@@ -862,7 +862,7 @@ document.addEventListener('mouseup', () => {
 
 $('#zoomReset').addEventListener('click', () => setZoom(null));
 
-// The wheel over the plot zooms about the pointer: down to zoom in, up to zoom out, and out
+// The wheel over the plot zooms about the pointer: up to zoom in, down to zoom out, and out
 // past the loaded range is the same as the ✕. Over the label gutter it still scrolls the
 // page, so a tall chart can be scrolled from there.
 $('#chart').addEventListener('wheel', (event) => {

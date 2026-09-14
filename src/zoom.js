@@ -56,9 +56,9 @@ export function clampZoom(zoom, from, to) {
 }
 
 /**
- * How fast the wheel zooms: the span is scaled by e^(-deltaY × this). One notch of a mouse
- * wheel (deltaY ≈ 100) narrows it to ~80%; a trackpad's small deltas make it continuous.
- * Positive deltaY (scrolling down) zooms in — flip the sign here to change that.
+ * How fast the wheel zooms: the span is scaled by e^(deltaY × this). One notch of a mouse
+ * wheel (|deltaY| ≈ 100) changes it by ~20%; a trackpad's small deltas make it continuous.
+ * Negative deltaY (scrolling up) zooms in, as maps do — flip the sign here to change that.
  */
 export const WHEEL_ZOOM_RATE = 0.002;
 
@@ -80,7 +80,7 @@ const MAX_WHEEL_FACTOR = 2;
  */
 export function zoomFromWheel(plot, loaded, x, deltaY) {
   const shown = plot.to - plot.from;
-  const factor = Math.min(MAX_WHEEL_FACTOR, Math.max(1 / MAX_WHEEL_FACTOR, Math.exp(-deltaY * WHEEL_ZOOM_RATE)));
+  const factor = Math.min(MAX_WHEEL_FACTOR, Math.max(1 / MAX_WHEEL_FACTOR, Math.exp(deltaY * WHEEL_ZOOM_RATE)));
   const span = shown * factor;
 
   if (span >= loaded.to - loaded.from) return null;
