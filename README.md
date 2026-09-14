@@ -34,7 +34,7 @@ ingress as Prefect on a `/monitor/` path, is all it takes.
 | `src/prefect-api.js` | the REST client, edge derivation, deep-link URLs |
 | `src/render.js` | builds the timeline SVG, legend, tooltip and state table |
 | `src/layout.js` | pipeline grouping, lane ordering, sub-row packing |
-| `src/zoom.js` | drag-to-zoom geometry and the scroll bar's thumb |
+| `src/zoom.js` | drag- and wheel-zoom geometry and the scroll bar's thumb |
 | `src/calendar.js` | month grids for the date picker |
 | `src/zone.js` | local-or-UTC: every timestamp on screen is formatted here |
 | `src/links.js` | linking runs to what triggered them, chains, chain filtering |
@@ -273,6 +273,8 @@ otherwise reads as a freeze.
 **Drag across the plot** to zoom into the span you dragged, the way Grafana's charts do.
 It costs nothing: the runs and links for the whole range are already loaded, so the axis
 just narrows. Under a few pixels of movement it stays a click and opens the run instead.
+**Scroll over the plot** to zoom about the pointer — down to zoom in, up to zoom out, and
+out past the whole range is the same as the ✕. The label gutter still scrolls the page.
 
 Zooming never touches the range — the picker still says "Last 6 hours" — so a CloudWatch-
 style scroll bar appears under the plot showing which slice you are in: drag the thumb to
