@@ -109,6 +109,12 @@ opening a pop-up pushes a history entry and coming back reopens it rather than l
 a bare chart. Everything else replaces, so changing a range does not fill the history. A
 run that is no longer in the window is fetched by id rather than given up on.
 
+The flow name filter is applied **at the server** as well as on screen: the run queries
+carry a `flows.name.like_` clause, so a long range spends its run budget on the flows you
+asked for instead of fetching everything and keeping a tenth of it. What is already loaded
+narrows as you type; the refetch waits for a pause. Each filter has its own cache entry,
+since a filtered window is a subset that must not answer for the whole.
+
 The one thing kept out of the URL is the width of the flow name column. It fits the
 longest name on screen; drag its right edge to change that, and the browser remembers the
 width for you (double-click the edge to go back to fitting). It is a preference of the

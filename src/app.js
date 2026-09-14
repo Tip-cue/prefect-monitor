@@ -50,6 +50,8 @@ const REFRESH_INTERVALS = [
   { label: '1h', ms: 60 * 60_000 },
 ];
 const RESIZE_DEBOUNCE_MS = 150;
+/** Pause in typing before the flow name filter is sent to the server. */
+const FILTER_DEBOUNCE_MS = 400;
 
 /** Falls back to this when the current range cannot be read, which the default matches. */
 const DEFAULT_SPAN_MS = 6 * 60 * 60 * 1000;
@@ -182,7 +184,9 @@ async function load({ force = false } = {}) {
   const { from, to } = resolved;
   const modalWasOpen = $('#modal').style.display === 'flex';
 
-  const cache = readCache(api.baseUrl);
+  // The filter is part of what was fetched: the server only sent matching runs.
+  const flowFilter = state.flowFilter.trim();
+  const cache = readCache(api.baseUrl, flowFilter);
   // A 5s auto-refresh means 5s, not "every other tick, because the cache was still fresh".
   const plan = planFetch(cache, from, to, Date.now(), force ? 0 : refreshMs() || CACHE_FRESH_MS);
 
@@ -210,7 +214,7 @@ async function load({ force = false } = {}) {
     const [runResult, refreshedRuns, flows, linkResult] = await Promise.all([
       // Overlapping, not just started-inside: a run that began before the window but
       // ran into it belongs on the chart.
-      api.fetchRunsOverlapping(fetchFrom, to),
+      api.fetchRunsOverlapping(fetchFrom, to, { flowName: flowFilter }),
       // The only cached runs that can have changed are the ones still in flight.
       plan.mode === 'incremental' ? api.fetchRunsByIds(unsettledRunIds(cache, from)) : [],
       api.fetchFlows(),
@@ -256,6 +260,10 @@ async function load({ force = false } = {}) {
       ? !await api.hasEventsIn(from, to).catch(() => true)
       : false;
 
+    // Typed on while this was in flight: the answer is for a filter no longer shown, so
+    // it must not be painted or cached as the current one. The later load draws its own.
+    if (state.flowFilter.trim() !== flowFilter) return;
+
     state.flowNames = new Map(flows.map((flow) => [flow.id, flow.name]));
     state.view = {
       runs, edges, exactLinks, from, to, linkError, linksFrom, runsFrom,
@@ -276,7 +284,7 @@ async function load({ force = false } = {}) {
       edges,
       linksFrom,
       batchKeys: BATCH_KEYS,
-    });
+    }, flowFilter);
   } catch (error) {
     showError(error);
   } finally {
@@ -1326,10 +1334,15 @@ function init() {
     delete localStorage.nameWidth;
     draw();
   });
+  // Filtered at the server too, so the fetch waits for a pause in typing; what is already
+  // loaded is narrowed at once.
+  let filterTimer = null;
   $('#flowFilter').oninput = () => {
     state.flowFilter = $('#flowFilter').value;
     writeUrl();
     draw();
+    clearTimeout(filterTimer);
+    filterTimer = setTimeout(() => load(), FILTER_DEBOUNCE_MS);
   };
   $('#refresh').onclick = () => load({ force: true });
 
