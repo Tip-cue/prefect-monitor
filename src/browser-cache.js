@@ -17,12 +17,18 @@ import { projectForStorage } from './run-cache.js';
  */
 const KEY_PREFIX = 'prefect-monitor.cache.2.';
 
-/** One entry per API base, so pointing at another server cannot serve its data. */
-const keyFor = (apiBaseUrl) => `${KEY_PREFIX}${apiBaseUrl}`;
+/**
+ * One entry per API base, so pointing at another server cannot serve its data — and per
+ * flow name filter, since a filtered fetch holds a subset that must not answer for the
+ * whole. The unfiltered key is unchanged, so existing entries stay valid.
+ */
+const keyFor = (apiBaseUrl, flowName = '') => (
+  `${KEY_PREFIX}${apiBaseUrl}${flowName ? `#${flowName.toLowerCase()}` : ''}`
+);
 
-export function readCache(apiBaseUrl) {
+export function readCache(apiBaseUrl, flowName = '') {
   try {
-    const raw = sessionStorage.getItem(keyFor(apiBaseUrl));
+    const raw = sessionStorage.getItem(keyFor(apiBaseUrl, flowName));
     if (!raw) return null;
 
     const cache = JSON.parse(raw);
@@ -39,6 +45,7 @@ export function readCache(apiBaseUrl) {
 export function writeCache(
   apiBaseUrl,
   { from, to, fetchedAt, runs, links, flows, edges, linksFrom, batchKeys = [] },
+  flowName = '',
 ) {
   const entry = {
     from,
@@ -58,20 +65,20 @@ export function writeCache(
   };
 
   try {
-    sessionStorage.setItem(keyFor(apiBaseUrl), JSON.stringify(entry));
+    sessionStorage.setItem(keyFor(apiBaseUrl, flowName), JSON.stringify(entry));
     return true;
   } catch (error) {
     // Quota is the expected failure on a wide window. Drop what is there and carry on
     // uncached rather than leaving a half-written entry behind.
     console.warn('could not cache this window, continuing without', error);
-    clearCache(apiBaseUrl);
+    clearCache(apiBaseUrl, flowName);
     return false;
   }
 }
 
-export function clearCache(apiBaseUrl) {
+export function clearCache(apiBaseUrl, flowName = '') {
   try {
-    sessionStorage.removeItem(keyFor(apiBaseUrl));
+    sessionStorage.removeItem(keyFor(apiBaseUrl, flowName));
   } catch {
     // Nothing to do: if it cannot be removed it also cannot have been written.
   }

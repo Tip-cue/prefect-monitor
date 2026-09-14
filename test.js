@@ -1158,6 +1158,7 @@ test('a window with more runs than one fetch can read', async (t) => {
   const now = Date.parse('2026-08-19T12:00:00Z');
   const from = now - 168 * 3600_000;
   let sorts = [];
+  let bodies = [];
 
   /** Answers /flow_runs/filter with `total` runs, newest at `now`, one per minute. */
   const stubFetch = (total) => {
@@ -1166,6 +1167,7 @@ test('a window with more runs than one fetch can read', async (t) => {
       if (!String(url).includes('/flow_runs/filter')) return json([]);
 
       sorts.push(body.sort);
+      bodies.push(body);
       const started = body.flow_runs.expected_start_time?.after_;
       // Only the started-inside query is asked for in bulk; the look-back ones are small.
       const count = Date.parse(started) >= from ? total : 1;
@@ -1206,6 +1208,20 @@ test('a window with more runs than one fetch can read', async (t) => {
 
     assert.equal(runs.length, 40); // the look-back queries return the same run, deduped
     assert.equal(coveredFrom, from);
+  });
+
+  await t.test('a flow name filter is sent to the server, on every one of the queries', async () => {
+    stubFetch(40);
+    bodies = [];
+    await new PrefectApi('http://p/api').fetchRunsOverlapping(from, now, { flowName: ' planetiq ' });
+
+    assert.ok(bodies.length >= 3);
+    assert.ok(bodies.every((body) => body.flows?.name?.like_ === '%planetiq%'),
+      'a look-back query without it would pull every flow\'s long runs back in');
+
+    bodies = [];
+    await new PrefectApi('http://p/api').fetchRunsOverlapping(from, now);
+    assert.ok(bodies.every((body) => body.flows === undefined), 'no filter, no flows clause');
   });
 });
 
@@ -1451,4 +1467,10 @@ test('the cache stores every field the next load reads back', () => {
   assert.deepEqual(Object.keys(back).sort(), Object.keys(entry).sort());
   assert.equal(back.linksFrom, entry.linksFrom);
   assert.equal(back.runs.length, 1);
+
+  // A filtered window is a subset: it must never answer for the whole, or the other way.
+  assert.ok(writeCache('http://p/api', { ...entry, runs: [] }, 'planetiq'));
+  assert.equal(readCache('http://p/api').runs.length, 1, 'the unfiltered entry is untouched');
+  assert.equal(readCache('http://p/api', 'planetiq').runs.length, 0);
+  assert.equal(readCache('http://p/api', 'PLANETIQ').runs.length, 0, 'the server matches case-insensitively, so the key does too');
 });

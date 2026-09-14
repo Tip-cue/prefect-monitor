@@ -139,13 +139,24 @@ export class PrefectApi {
    * with two days of bars on the left and nothing after them.
    *
    * @param {object} flowRunsFilter the Prefect `flow_runs` filter object
+   * @param {object} [otherFilters] sibling filters of the same request, e.g. `flows`
    */
-  async fetchRuns(flowRunsFilter) {
+  async fetchRuns(flowRunsFilter, otherFilters = {}) {
     return this.#fetchAllPages(
       '/flow_runs/filter',
-      { flow_runs: flowRunsFilter, sort: 'EXPECTED_START_TIME_DESC' },
+      { flow_runs: flowRunsFilter, ...otherFilters, sort: 'EXPECTED_START_TIME_DESC' },
       MAX_RUNS_PER_WINDOW,
     );
+  }
+
+  /**
+   * The server-side half of the flow name filter: a `flows` filter matching names that
+   * contain `needle`, case-insensitively. Empty means no filter. A `%` or `_` in the text
+   * is a LIKE wildcard, so the server can return a superset; the client filters exactly.
+   */
+  static flowNameFilter(needle) {
+    const text = String(needle ?? '').trim();
+    return text ? { flows: { name: { like_: `%${text}%` } } } : {};
   }
 
   /**
@@ -161,32 +172,36 @@ export class PrefectApi {
    *   started earlier, ended inside      (end_time after `from`)
    *   started earlier, still going       (no end_time, so matched on state)
    *
+   * @param {{flowName?: string}} [options] only runs of flows whose name contains this
    * @returns {Promise<{runs: object[], coveredFrom: number}>} `coveredFrom` is the
    *   earliest instant the answer is complete from: `from` normally, later than it when
    *   the window holds more runs than the cap. The caller has to keep that instant, not
    *   `from`, or a cache of a truncated window would claim to cover a span it does not
    *   have and serve a narrower window from the hole.
    */
-  async fetchRunsOverlapping(from, to) {
+  async fetchRunsOverlapping(from, to, { flowName = '' } = {}) {
     const iso = (ms) => new Date(ms).toISOString();
     const topLevel = { parent_task_run_id: { is_null_: true } };
     const earliest = iso(from - OVERLAP_LOOKBACK_MS);
+    // Filtered at the server so a long range spends its run budget on the flows asked
+    // for, instead of fetching everything and keeping a tenth of it.
+    const flows = PrefectApi.flowNameFilter(flowName);
 
     const [inside, endedInside, stillRunning] = await Promise.all([
       this.fetchRuns({
         ...topLevel,
         expected_start_time: { after_: iso(from), before_: iso(to) },
-      }),
+      }, flows),
       this.fetchRuns({
         ...topLevel,
         expected_start_time: { after_: earliest, before_: iso(from) },
         end_time: { after_: iso(from) },
-      }),
+      }, flows),
       this.fetchRuns({
         ...topLevel,
         expected_start_time: { after_: earliest, before_: iso(from) },
         state: { type: { any_: ['RUNNING', 'PAUSED', 'CANCELLING'] } },
-      }),
+      }, flows),
     ]);
 
     const byId = new Map();
