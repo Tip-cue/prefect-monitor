@@ -14,9 +14,10 @@ import { runLinkPairs } from './links.js';
 import { formatFull, formatTime } from './zone.js';
 
 const LAYOUT = {
-  // Default width of the flow name column; the user can drag it (options.nameWidth).
-  nameWidth: 215,
+  // The flow name column is sized to its longest name unless the user drags it
+  // (options.nameWidth); it never takes more than this share of the chart.
   minNameWidth: 80,
+  maxNameShare: 0.45,
   /** A lane name starts 14px in and must end 12px short of the column's edge. */
   nameInset: 26,
   /** One column per state present, plus a total, in aggregate mode's label gutter.
@@ -74,14 +75,15 @@ export function escapeHtml(value) {
  * @param {{src: string, dst: string, name: string}[]} options.edges
  * @param {boolean} options.aggregated bin runs per lane instead of drawing each one
  * @param {(flowId: string) => string} options.flowName
- * @param {number} [options.nameWidth] width of the flow name column, px
+ * @param {number} [options.nameWidth] width of the flow name column, px; omitted, the
+ *   column fits its longest name
  * @param {(text: string) => number} [options.textWidth] measures a lane name at 12px;
  *   the browser passes a canvas measurement, tests get an estimate
  */
 export function renderTimeline(container, runs, options) {
   const {
     from, to, edges = [], aggregated = false, flowName = String, exactLinks = [],
-    nameWidth = LAYOUT.nameWidth, textWidth = estimateTextWidth,
+    nameWidth, textWidth = estimateTextWidth,
   } = options;
 
   // Only what genuinely occupies the window: runs are fetched on expected start, so
@@ -109,7 +111,10 @@ export function renderTimeline(container, runs, options) {
 
   // The counts table is aggregate mode's job; the graph shows each run's state directly.
   const states = aggregated ? [...new Set(visible.map(stateName))].sort(compareStateNames) : [];
-  const geometry = computeGeometry(container, groups, runsByFlow, { from, to, aggregated, states, nameWidth });
+  const geometry = computeGeometry(container, groups, runsByFlow, {
+    from, to, aggregated, states,
+    nameWidth: nameWidth ?? fittedNameWidth(groups.flat().map(flowName), textWidth, aggregated),
+  });
   const marks = [];
 
   const svg = [
@@ -152,9 +157,15 @@ function flowEdgesFrom(pairs) {
  * Works out where everything goes: lane heights (which depend on how many runs
  * overlap), group boxes, and the time-to-x mapping.
  */
+/** The column width that shows every name in full. */
+function fittedNameWidth(names, textWidth, aggregated) {
+  const longest = Math.max(0, ...names.map(textWidth));
+  return Math.ceil(longest) + LAYOUT.nameInset + (aggregated ? 16 : 0);
+}
+
 function computeGeometry(container, groups, runsByFlow, { from, to, aggregated, states, nameWidth }) {
-  nameWidth = Math.max(LAYOUT.minNameWidth, nameWidth);
   const width = Math.max(container.clientWidth - 16, LAYOUT.minChartWidth);
+  nameWidth = Math.max(LAYOUT.minNameWidth, Math.min(nameWidth, width * LAYOUT.maxNameShare));
   // In aggregate mode the gutter is a table: the flow name, a column per state, then
   // the row total. Everywhere else it is just the name.
   const labelWidth = states.length === 0

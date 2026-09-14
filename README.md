@@ -109,8 +109,9 @@ opening a pop-up pushes a history entry and coming back reopens it rather than l
 a bare chart. Everything else replaces, so changing a range does not fill the history. A
 run that is no longer in the window is fetched by id rather than given up on.
 
-The one thing kept out of the URL is the width of the flow name column: drag its right
-edge to widen it, and the browser remembers the width for you. It is a preference of the
+The one thing kept out of the URL is the width of the flow name column. It fits the
+longest name on screen; drag its right edge to change that, and the browser remembers the
+width for you (double-click the edge to go back to fitting). It is a preference of the
 screen it is on, not part of what a link says.
 
 The range is stored as **expressions, not timestamps**, the way Grafana and Kibana do

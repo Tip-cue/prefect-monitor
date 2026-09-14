@@ -67,7 +67,7 @@ const state = {
   selectedStates: new Set(),
   /** Text filter: only flows whose name contains this (case-insensitive). */
   flowFilter: '',
-  /** Width of the flow name column, px. Dragged, and remembered. */
+  /** Width of the flow name column, px, once dragged; undefined fits the longest name. */
   nameWidth: Number(localStorage.nameWidth) || undefined,
   /** Shift-clicked run whose chain is isolated, if any. */
   isolatedRunId: null,
@@ -739,7 +739,7 @@ $('#chart').addEventListener('mousedown', (event) => {
 
   // The grab strip on the name column's edge resizes the column instead of selecting time.
   if (event.target.classList.contains('colHandle')) {
-    const start = state.nameWidth ?? event.target.getBBox().x + 4;
+    const start = state.nameWidth ?? event.target.getBBox().x + 10; // the strip straddles the edge
     columnDrag = { startX: event.clientX, start };
     document.body.classList.add('dragging');
     event.preventDefault();
@@ -1319,6 +1319,13 @@ function init() {
 
   $('#mGraph').onclick = () => setMode('graph');
   $('#mAgg').onclick = () => setMode('agg');
+  // Double-click the column's edge to go back to fitting the longest name.
+  $('#chart').addEventListener('dblclick', (event) => {
+    if (!event.target.classList.contains('colHandle')) return;
+    state.nameWidth = undefined;
+    delete localStorage.nameWidth;
+    draw();
+  });
   $('#flowFilter').oninput = () => {
     state.flowFilter = $('#flowFilter').value;
     writeUrl();
