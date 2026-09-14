@@ -369,7 +369,7 @@ function draw() {
     flowName,
     nameWidth: state.nameWidth,
     textWidth,
-    zoomed: Boolean(state.zoom),
+    range: loaded, // lanes from the whole loaded span, so the zoom only moves the marks
   });
   drawZoomBar(loaded);
 }
@@ -388,9 +388,7 @@ function drawZoomBar(loaded) {
     return;
   }
 
-  // Shown whenever there is a zoom, plot or no plot: a slice with no runs in it — a filter
-  // to a flow that ran outside it, say — used to hide the bar, and the ✕ with it, exactly
-  // when it was the way out.
+  // Shown whenever there is a zoom, plot or no plot, so the ✕ is always there.
   bar.hidden = false;
   const track = $('#zoomTrack');
   track.style.marginLeft = `${plot?.left ?? 0}px`; // line the start of the track up with the plot
@@ -879,8 +877,8 @@ document.addEventListener('wheel', (event) => {
     x = event.clientX - svg.getBoundingClientRect().left;
     if (x < plot.left) return;
   } else if (state.zoom) {
-    // Nothing is drawn to point at — the slice is empty — so the whole page is the zoom
-    // surface, anchored on the slice's middle, and scrolling out is the way back.
+    // Nothing is drawn to point at, so the whole page is the zoom surface, anchored on
+    // the slice's middle, and scrolling out is the way back.
     plot = { left: 0, width: 1, from: state.zoom.from, to: state.zoom.to };
     x = 0.5;
   } else {

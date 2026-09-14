@@ -611,8 +611,8 @@ body.dragging {
   position: relative;
   flex: 1 1 auto;
   min-width: 40px;
-  height: 20px;
-  border-radius: 10px;
+  height: 16px;
+  border-radius: 8px;
   background: var(--panel);
   border: 1px solid var(--line);
 }
@@ -622,7 +622,7 @@ body.dragging {
   top: -1px;
   bottom: -1px;
   min-width: 14px;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #34518f;
   border: 1px solid var(--accent);
   cursor: grab;
