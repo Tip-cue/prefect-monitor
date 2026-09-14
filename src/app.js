@@ -369,6 +369,7 @@ function draw() {
     flowName,
     nameWidth: state.nameWidth,
     textWidth,
+    zoomed: Boolean(state.zoom),
   });
   drawZoomBar(loaded);
 }
@@ -382,14 +383,17 @@ function drawZoomBar(loaded) {
   const bar = $('#zoomBar');
   const plot = $('#chart').timelinePlot;
 
-  if (!state.zoom || !plot) {
+  if (!state.zoom) {
     bar.hidden = true;
     return;
   }
 
+  // Shown whenever there is a zoom, plot or no plot: a slice with no runs in it — a filter
+  // to a flow that ran outside it, say — used to hide the bar, and the ✕ with it, exactly
+  // when it was the way out.
   bar.hidden = false;
   const track = $('#zoomTrack');
-  track.style.marginLeft = `${plot.left}px`; // line the start of the track up with the plot
+  track.style.marginLeft = `${plot?.left ?? 0}px`; // line the start of the track up with the plot
 
   // Measured, not assumed: the track takes what the row has left, which depends on the
   // label's text. Reading the width forces layout, so this is the width just applied.

@@ -79,6 +79,7 @@ export function escapeHtml(value) {
  *   column fits its longest name
  * @param {(text: string) => number} [options.textWidth] measures a lane name at 12px;
  *   the browser passes a canvas measurement, tests get an estimate
+ * @param {boolean} [options.zoomed] the window is a zoom, so an empty one has a way out
  */
 export function renderTimeline(container, runs, options) {
   const {
@@ -103,7 +104,9 @@ export function renderTimeline(container, runs, options) {
   const groups = laneGroups([...runsByFlow.keys()], [...edges, ...flowEdgesFrom(pairs)], flowName);
 
   if (groups.length === 0) {
-    container.innerHTML = '<p class="muted" style="padding:16px">no flow runs in this window</p>';
+    container.innerHTML = `<p class="muted" style="padding:16px">${
+      options.zoomed ? 'no flow runs in this slice — ✕ below, or Escape, to zoom back out' : 'no flow runs in this window'
+    }</p>`;
     container.timelineMarks = [];
     container.timelinePlot = null; // nothing drawn, so there is nothing to drag across
     return;
