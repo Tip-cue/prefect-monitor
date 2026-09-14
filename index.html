@@ -18,7 +18,11 @@
     <button id="mAgg">Aggregate</button>
 
     <span class="sep"></span>
-    <input id="flowFilter" type="search" placeholder="filter flows…" title="Show only flows whose name contains this" spellcheck="false">
+    <!-- Applied on Enter or the tick, not per keystroke: the filter goes to the server. -->
+    <div id="flowFilterBox">
+      <input id="flowFilter" placeholder="filter flows…" title="Show only flows whose name contains this — Enter to apply" spellcheck="false">
+      <button id="flowFilterApply" title="Apply the filter (Enter)">&#10003;</button>
+    </div>
 
     <span class="sep"></span>
     <div id="rangePicker">

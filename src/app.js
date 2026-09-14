@@ -50,8 +50,6 @@ const REFRESH_INTERVALS = [
   { label: '1h', ms: 60 * 60_000 },
 ];
 const RESIZE_DEBOUNCE_MS = 150;
-/** Pause in typing before the flow name filter is sent to the server. */
-const FILTER_DEBOUNCE_MS = 400;
 
 /** Falls back to this when the current range cannot be read, which the default matches. */
 const DEFAULT_SPAN_MS = 6 * 60 * 60 * 1000;
@@ -477,6 +475,24 @@ function linkNotice() {
 
 const filterByState = (runs) =>
   filterToChainsWithState(runs, state.selectedStates, state.view?.exactLinks ?? []);
+
+/** Pending while what is typed differs from what is applied; lit once a filter is applied. */
+function syncFlowFilterBox() {
+  const typed = $('#flowFilter').value.trim();
+  const applied = state.flowFilter.trim();
+  $('#flowFilterBox').classList.toggle('pending', typed !== applied);
+  $('#flowFilterBox').classList.toggle('on', typed === applied && applied !== '');
+}
+
+function applyFlowFilter() {
+  const typed = $('#flowFilter').value.trim();
+  if (typed === state.flowFilter.trim()) return syncFlowFilterBox();
+  state.flowFilter = typed;
+  syncFlowFilterBox();
+  writeUrl();
+  draw(); // narrow what is loaded at once; the fetch fills in what the server has
+  load();
+}
 
 const filterByFlowName = (runs) => {
   const needle = state.flowFilter.trim().toLowerCase();
@@ -1025,6 +1041,7 @@ function syncControls() {
   $('#zoneToggle').classList.toggle('on', getZone() === 'utc');
 
   $('#flowFilter').value = state.flowFilter;
+  syncFlowFilterBox();
 
   $('#refreshIntervalLabel').textContent = state.refresh;
   $('#refreshIntervalButton').classList.toggle('on', state.refresh !== 'Off');
@@ -1334,16 +1351,14 @@ function init() {
     delete localStorage.nameWidth;
     draw();
   });
-  // Filtered at the server too, so the fetch waits for a pause in typing; what is already
-  // loaded is narrowed at once.
-  let filterTimer = null;
-  $('#flowFilter').oninput = () => {
-    state.flowFilter = $('#flowFilter').value;
-    writeUrl();
-    draw();
-    clearTimeout(filterTimer);
-    filterTimer = setTimeout(() => load(), FILTER_DEBOUNCE_MS);
+  // The filter goes to the server, so it is applied on Enter or the tick rather than on
+  // every keystroke — typing only marks the box as pending.
+  $('#flowFilter').oninput = syncFlowFilterBox;
+  $('#flowFilter').onkeydown = (event) => {
+    if (event.key === 'Enter') applyFlowFilter();
+    if (event.key === 'Escape') { $('#flowFilter').value = state.flowFilter; syncFlowFilterBox(); }
   };
+  $('#flowFilterApply').onclick = applyFlowFilter;
   $('#refresh').onclick = () => load({ force: true });
 
   // A display setting: nothing is refetched, everything is relabelled. The range keeps its

@@ -1407,14 +1407,14 @@ test('app.js still defines the functions it is wired from', () => {
   const defined = [...source.matchAll(/^(?:async )?function (\w+)/gm)].map((m) => m[1]).sort();
 
   assert.deepEqual(defined, [
-    'applyCalendar', 'applyRange', 'asOfNotice', 'batchOfChain', 'buildCalendar',
+    'applyCalendar', 'applyFlowFilter', 'applyRange', 'asOfNotice', 'batchOfChain', 'buildCalendar',
     'buildRangePicker', 'buildRefreshControl', 'clearIsolation', 'closeCalendar',
     'closeModal', 'closeRangePanel', 'draw', 'drawCalendar', 'drawZoomBar', 'drawnFrom',
     'drawnWindow', 'fieldInstant', 'highlightLinks', 'init', 'isolateChain',
     'linkNotice', 'load', 'openCalendar', 'openModal', 'openRangePanel',
     'openRunInPrefect', 'prefectLink', 'rangeSpan', 'readUrl', 'restoreModalFromUrl',
     'runNotice', 'setMode', 'setRange', 'setRefresh', 'setZoom', 'showChainWindow',
-    'showError', 'showRangeError', 'showSubflows', 'syncControls', 'toggleStateFilter',
+    'showError', 'showRangeError', 'showSubflows', 'syncControls', 'syncFlowFilterBox', 'toggleStateFilter',
     'trackWidth', 'typedTime', 'withAssumedLinks', 'writeUrl',
   ]);
 });
