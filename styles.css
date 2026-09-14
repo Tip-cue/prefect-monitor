@@ -673,8 +673,50 @@ svg text {
   fill-opacity: 0.35;
 }
 
+/* The flow filter: an input and its tick in one bordered box. The border says where the
+   filter stands — pending (white) while what is typed differs from what is applied, lit
+   like the other active controls once applied, plain when empty. */
+#flowFilterBox {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 2px 0 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+}
+
+#flowFilterBox.pending {
+  border-color: var(--ink);
+}
+
+#flowFilterBox.on {
+  border-color: var(--accent);
+  background: #1b2a4a;
+}
+
 #flowFilter {
   width: 150px;
+  border: 0;
+  background: none;
+  outline: none;
+}
+
+#flowFilterApply {
+  flex: none;
+  padding: 3px 7px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--muted);
+}
+
+#flowFilterBox.pending #flowFilterApply {
+  color: var(--ink);
+}
+
+#flowFilterApply:hover {
+  background: var(--bg);
+  color: var(--ink);
 }
 
 .run {
