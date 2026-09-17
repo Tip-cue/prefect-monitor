@@ -6,14 +6,9 @@ import {
   filterToChainsWithState, inferredLinks, runChain, sequentialChainLinks,
 } from './links.js';
 import {
-  renderTimeline, legendHtml, tooltipHtml, tooltipPosition, popoverOffset, escapeHtml,
+  renderTimeline, legendHtml, tooltipHtml, tooltipPosition, escapeHtml,
 } from './render.js';
-import {
-  QUICK_RANGES, DURATIONS, START_ANCHORS, DEFAULT_RANGE, MAX_RANGE_MS,
-  anchorStart, capRange, composeRange, formatLocal,
-  resolveRange, describeRange, matchQuickRange, parseTimeExpression, restampRange,
-  viewFromQuery, viewToQuery,
-} from './time-range.js';
+import { resolveRange, viewFromQuery, viewToQuery } from './time-range.js';
 import {
   CACHE_FRESH_MS, planFetch, unsettledRunIds, mergeRuns, mergeLinks,
 } from './run-cache.js';
@@ -21,45 +16,40 @@ import {
   DRAG_THRESHOLD_PX, clampZoom, thumbGeometry, zoomFromDrag, zoomFromThumb, zoomFromWheel,
 } from './zoom.js';
 import { readCache, writeCache, clearCache } from './browser-cache.js';
-import { apiUrlEditable, resolveApiUrl, resolveBatchKeys } from './settings.js';
-import { formatFull, getZone, setZone, zoneLabel } from './zone.js';
-import {
-  WEEKDAYS, clampTime, instantOf, monthGrid, monthLabel, partsOf, shiftMonth,
-} from './calendar.js';
+import { resolveBatchKeys } from './settings.js';
+import { formatFull, getZone } from './zone.js';
+import { mountHeader } from './header.js';
 
 /**
 /** What `config.js` said, if the deployment wrote one. */
 const CONFIG = globalThis.PREFECT_MONITOR ?? {};
 
-const API_URL_EDITABLE = apiUrlEditable({ config: CONFIG, hostname: location.hostname });
 const BATCH_KEYS = resolveBatchKeys(CONFIG, BATCH_PAYLOAD_KEYS);
 
 /** Every client is built the same way, so config applies wherever the server changes. */
 const clientFor = (baseUrl) => new PrefectApi(baseUrl, { batchKeys: BATCH_KEYS });
 
-/** Grafana's ladder. "Off" is first so it is the safe default. */
-const REFRESH_INTERVALS = [
-  { label: 'Off', ms: 0 },
-  { label: '5s', ms: 5_000 },
-  { label: '10s', ms: 10_000 },
-  { label: '30s', ms: 30_000 },
-  { label: '1m', ms: 60_000 },
-  { label: '5m', ms: 5 * 60_000 },
-  { label: '15m', ms: 15 * 60_000 },
-  { label: '30m', ms: 30 * 60_000 },
-  { label: '1h', ms: 60 * 60_000 },
-];
 const RESIZE_DEBOUNCE_MS = 150;
-
-/** Falls back to this when the current range cannot be read, which the default matches. */
-const DEFAULT_SPAN_MS = 6 * 60 * 60 * 1000;
 
 const $ = (selector) => document.querySelector(selector);
 
+/**
+ * The part of the bar that is this page's and not the header's: which shape to draw the
+ * window in, and which flows to ask the server for.
+ */
+const EXTRAS = `
+    <button id="mGraph">Flow graph</button>
+    <button id="mAgg">Aggregate</button>
+
+    <span class="sep"></span>
+    <!-- Applied on Enter or the tick, not per keystroke: the filter goes to the server. -->
+    <div id="flowFilterBox">
+      <input id="flowFilter" placeholder="filter flows…" title="Show only flows whose name contains this — Enter to apply" spellcheck="false">
+      <button id="flowFilterApply" title="Apply the filter (Enter)">&#10003;</button>
+    </div>`;
+
 const state = {
   mode: 'graph',
-  /** Range as expressions ("now-6h" → "now"), so a refresh keeps meaning the same. */
-  range: { ...DEFAULT_RANGE },
   /** @type {{runs, edges, exactLinks, from: number, to: number}|null} */
   view: null,
   flowNames: new Map(),
@@ -71,8 +61,6 @@ const state = {
   nameWidth: Number(localStorage.nameWidth) || undefined,
   /** Shift-clicked run whose chain is isolated, if any. */
   isolatedRunId: null,
-  /** Auto-refresh interval label, "Off" when disabled. */
-  refresh: 'Off',
   /** Which pop-up is open, mirrored in the URL: { kind, id } or null. */
   modal: null,
   /**
@@ -83,12 +71,9 @@ const state = {
   zoom: null,
 };
 
-let api = clientFor(resolveApiUrl({
-  config: CONFIG,
-  hostname: location.hostname,
-  storedUrl: localStorage.apiUrl,
-}));
-let autoRefreshTimer = null;
+/** Both built in init(), against the API the header resolved. */
+let api = null;
+let header = null;
 let resizeTimer = null;
 
 const flowName = (flowId) => state.flowNames.get(flowId) || String(flowId).slice(0, 8);
@@ -106,20 +91,19 @@ const textWidth = (text) => {
   return labelRuler.firstChild.getComputedTextLength();
 };
 
-/** The chosen auto-refresh interval in ms, 0 when it is off. */
-const refreshMs = () => REFRESH_INTERVALS.find((option) => option.label === state.refresh)?.ms ?? 0;
 
 /* ------------------------------ loading data ------------------------------ */
 
-/** Reads the view out of the URL so a refresh — or a pasted link — restores it. */
+/**
+ * Reads the timeline's half of the view out of the URL so a refresh — or a pasted link —
+ * restores it. The range, the clock and the refresh interval are the header's half, and it
+ * has already read them by the time this runs.
+ */
 function readUrl() {
-  const { range, mode, states, refresh, modal, zoom, zone, flow } = viewFromQuery(window.location.search);
-  setZone(zone ?? localStorage.zone ?? 'local');
-  state.range = range;
+  const { mode, states, modal, zoom, flow } = viewFromQuery(window.location.search);
   state.mode = mode ?? localStorage.mode ?? 'graph';
   state.selectedStates = new Set(states);
   state.flowFilter = flow;
-  state.refresh = refresh ?? localStorage.refresh ?? 'Off';
   state.modal = modal;
   state.zoom = zoom;
 }
@@ -133,11 +117,11 @@ function readUrl() {
  */
 function writeUrl({ push = false } = {}) {
   const query = viewToQuery({
-    range: state.range,
+    range: header.range,
     mode: state.mode,
     states: [...state.selectedStates],
     flow: state.flowFilter,
-    refresh: state.refresh,
+    refresh: header.refresh,
     modal: state.modal,
     zoom: state.zoom,
     zone: getZone(),
@@ -174,9 +158,9 @@ function withAssumedLinks(runs, edges, eventLinks) {
 
 async function load({ force = false } = {}) {
   $('#err').style.display = 'none';
-  const resolved = resolveRange(state.range);
+  const resolved = resolveRange(header.range);
   if (!resolved) {
-    showRangeError('that range does not resolve');
+    header.showRangeError('that range does not resolve');
     return;
   }
   const { from, to } = resolved;
@@ -186,7 +170,7 @@ async function load({ force = false } = {}) {
   const flowFilter = state.flowFilter.trim();
   const cache = readCache(api.baseUrl, flowFilter);
   // A 5s auto-refresh means 5s, not "every other tick, because the cache was still fresh".
-  const plan = planFetch(cache, from, to, Date.now(), force ? 0 : refreshMs() || CACHE_FRESH_MS);
+  const plan = planFetch(cache, from, to, Date.now(), force ? 0 : header.refreshMs() || CACHE_FRESH_MS);
 
   // Paint what is already known before going to the network. On a reload or a refresh
   // tick this is the whole window, so the chart is there immediately.
@@ -973,405 +957,36 @@ function setMode(mode) {
   draw(); // same data, different shape — no refetch
 }
 
-/** @param {{from: string, to: string}} range expressions, not timestamps */
-/**
- * @param {'start'|'end'} anchor which end to keep if the range is too long — the one just
- *   set. Capped here as well as when it is resolved, so the button never labels the chart
- *   with a week it is not showing.
- */
-function setRange(range, anchor = 'end') {
-  state.range = capRange(range, Date.now(), anchor);
-  syncControls();
-  writeUrl();
-  closeRangePanel();
-  load();
-}
-
-function showRangeError(message) {
-  $('#rangeError').textContent = message;
-}
-
-/* ----------------------------- auto refresh ------------------------------- */
-
-function setRefresh(label) {
-  state.refresh = localStorage.refresh = label;
-  clearInterval(autoRefreshTimer);
-
-  const chosen = REFRESH_INTERVALS.find((option) => option.label === label);
-  // Wrapped: setInterval hands its callback a tick count, which load would read as options.
-  if (chosen?.ms) autoRefreshTimer = setInterval(() => load(), chosen.ms);
-
-  syncControls();
-  writeUrl();
-  $('#refreshMenu').hidden = true;
-  $('#refreshIntervalButton').setAttribute('aria-expanded', 'false');
-}
-
-function buildRefreshControl() {
-  $('#refreshMenu').innerHTML = REFRESH_INTERVALS
-    .map((option) => `<button data-label="${option.label}">${option.label}</button>`)
-    .join('');
-
-  document.querySelectorAll('#refreshMenu button').forEach((button) => {
-    button.onclick = () => setRefresh(button.dataset.label);
-  });
-
-  $('#refreshIntervalButton').onclick = () => {
-    const menu = $('#refreshMenu');
-    menu.hidden = !menu.hidden;
-    $('#refreshIntervalButton').setAttribute('aria-expanded', String(!menu.hidden));
-  };
-
-  document.addEventListener('click', (event) => {
-    if (!$('#refreshMenu').hidden && !event.target.closest('#refreshControl')) {
-      $('#refreshMenu').hidden = true;
-      $('#refreshIntervalButton').setAttribute('aria-expanded', 'false');
-    }
-  });
-}
-
+/** The controls this page adds to the bar. The header syncs its own. */
 function syncControls() {
   $('#mGraph').classList.toggle('on', state.mode === 'graph');
   $('#mAgg').classList.toggle('on', state.mode === 'agg');
 
-  $('#rangeLabel').textContent = describeRange(state.range);
-
-  const active = matchQuickRange(state.range);
-  document.querySelectorAll('#quickRanges button').forEach((button) => {
-    button.classList.toggle('on', Boolean(active) && button.dataset.from === active.from);
-  });
-
-  // A fixed start shows in the input; "the last N" leaves it empty, since there is nothing
-  // to type — the start is wherever `now` happens to be.
-  const startsAt = active ? null : parseTimeExpression(state.range.from);
-  $('#rangeFrom').value = startsAt === null ? '' : formatLocal(startsAt);
-
-  // An end only shows when it is a fixed one: "ending now" has no timestamp to put there.
-  const endsAt = active || state.range.to === 'now' ? null : parseTimeExpression(state.range.to);
-  $('#rangeTo').value = endsAt === null ? '' : formatLocal(endsAt);
-
-  // Empty means "wherever the range currently reaches", so say where that is rather than
-  // showing a date baked into the markup.
-  $('#rangeFrom').placeholder = formatLocal(fieldInstant('rangeFrom'));
-  $('#rangeTo').placeholder = formatLocal(fieldInstant('rangeTo'));
-  document.querySelectorAll('#startAnchors button').forEach((button) => {
-    button.classList.toggle('on',
-      startsAt !== null && startsAt === anchorStart(Number(button.dataset.days)));
-  });
-
-  // "Until now" and a fixed duration are alternatives, so exactly one of them is lit.
-  const openEnded = startsAt !== null && state.range.to === 'now';
-  $('#untilNow').classList.toggle('on', openEnded);
-
-  const span = rangeSpan();
-  document.querySelectorAll('#durations button').forEach((button) => {
-    button.classList.toggle('on', !openEnded && Number(button.dataset.ms) === span);
-  });
-
-  $('#zoneLabel').textContent = zoneLabel();
-  $('#zoneToggle').classList.toggle('on', getZone() === 'utc');
-
   $('#flowFilter').value = state.flowFilter;
   syncFlowFilterBox();
 
-  $('#refreshIntervalLabel').textContent = state.refresh;
-  $('#refreshIntervalButton').classList.toggle('on', state.refresh !== 'Off');
-  document.querySelectorAll('#refreshMenu button').forEach((button) => {
-    button.classList.toggle('on', button.dataset.label === state.refresh);
-  });
-}
-
-/* ------------------------------ range picker ------------------------------ */
-
-function openRangePanel() {
-  showRangeError('');
-  const panel = $('#rangePanel');
-  panel.hidden = false;
-  $('#rangeButton').setAttribute('aria-expanded', 'true');
-
-  // Measured once it is laid out: the panel is wider than the button, and where the button
-  // sits depends on what else the header is showing.
-  panel.style.left = `${popoverOffset({
-    pickerLeft: $('#rangePicker').getBoundingClientRect().left,
-    panelWidth: panel.offsetWidth,
-    viewportWidth: window.innerWidth,
-  })}px`;
-}
-
-function closeRangePanel() {
-  closeCalendar();
-  $('#rangePanel').hidden = true;
-  $('#rangeButton').setAttribute('aria-expanded', 'false');
-}
-
-/** The span currently selected, so picking a start keeps the duration and vice versa. */
-function rangeSpan() {
-  const resolved = resolveRange(state.range);
-  return resolved ? Math.min(resolved.to - resolved.from, MAX_RANGE_MS) : DEFAULT_SPAN_MS;
-}
-
-/**
- * What one of the timestamp fields says.
- *
- * @returns {number|null|NaN} null when it is empty, NaN when it holds something that
- *   cannot be read — a difference that matters, since empty means "use the other end"
- *   and unreadable has to be reported.
- */
-function typedTime(selector) {
-  const text = $(selector).value.trim();
-  if (!text) return null;
-
-  const ms = parseTimeExpression(text);
-  return ms === null ? NaN : ms;
-}
-
-/**
- * Applies whatever the panel now says, from the piece that was just chosen.
- *
- * Any one of the three — start, end, duration — can be set at a time, and the others keep
- * what they had, so there is no order to learn and nothing to confirm. Which two are
- * present decides the third:
- *
- *   start + end        exactly that, capped towards `anchor`
- *   start + duration   start, running on for that long
- *   end + duration     that long, ending there
- *   duration alone     the last N, still ending now
- *
- * @param {{startMs?: number, endMs?: number, durationMs?: number, untilNow?: boolean,
- *   anchor?: 'start'|'end'}} choice `untilNow` runs the window on from the start rather
- *   than ending it a fixed span later, which is what you want for today: the chart then
- *   keeps up as runs come in.
- */
-function applyRange({ startMs, endMs, durationMs, untilNow = false, anchor = 'end' } = {}) {
-  const start = startMs ?? typedTime('#rangeFrom');
-  const end = endMs ?? typedTime('#rangeTo');
-
-  if (Number.isNaN(start) || Number.isNaN(end)) {
-    showRangeError(`unreadable ${Number.isNaN(start) ? 'start' : 'end'} time`);
-    return;
-  }
-
-  if (untilNow) {
-    if (start === null) {
-      showRangeError('pick a start point first');
-      return;
-    }
-    // Capping is silent everywhere else, but here it throws away the start just clicked.
-    if (Date.now() - start > MAX_RANGE_MS) showRangeError('more than 24h ago — showing the last 24h');
-    setRange({ from: formatLocal(start), to: 'now' });
-    return;
-  }
-
-  const range = composeRange({
-    startMs: start,
-    endMs: end,
-    durationMs: durationMs ?? null,
-    spanMs: rangeSpan(),
-  });
-
-  if (!resolveRange(range)) {
-    showRangeError('ends before it starts');
-    return;
-  }
-  setRange(range, anchor);
-}
-
-/**
- * The instant a timestamp field stands for: what it holds, or — while it is empty, which is
- * what a relative range leaves it — where that range currently starts or ends.
- *
- * So the calendar opens on the range you are looking at rather than on today, and an empty
- * field hints at the boundary it would replace rather than at a date typed into the markup
- * once and left there.
- */
-function fieldInstant(field) {
-  const typed = parseTimeExpression($(`#${field}`).value.trim());
-  if (typed !== null) return typed;
-
-  const resolved = resolveRange(state.range);
-  if (!resolved) return Date.now();
-  return field === 'rangeFrom' ? resolved.from : resolved.to;
-}
-
-/**
- * Which field the calendar is editing, the month it is showing, and the time it will apply.
- *
- * The time lives here rather than being read back out of the inputs, because redrawing —
- * stepping to another month — replaces them. Reading the field instead meant every redraw,
- * including the one on a stepper click, snapped the time back to what the field said.
- */
-let calendar = null;
-
-/**
- * Draws the calendar for whichever field opened it.
- *
- * In flow beneath that field rather than floating: the panel simply grows, so there is no
- * second popover to keep inside the window — a problem the range panel itself needed
- * measuring to solve.
- */
-function drawCalendar() {
-  if (!calendar) return;
-  const { year, month, day: picked, hours, minutes } = calendar;
-
-  // The highlight follows what has been clicked, not what the field still says: a day is
-  // chosen first and confirmed after, so the two disagree in between.
-  const isSelected = (day) => day === picked
-    && year === calendar.year && month === calendar.month;
-
-  const rows = monthGrid(year, month).map((week) => `<tr>${week.map((day) => (
-    day === null
-      ? '<td></td>'
-      : `<td><button data-day="${day}" class="${isSelected(day) ? 'on' : ''}">${day}</button></td>`
-  )).join('')}</tr>`).join('');
-
-  $('#calendar').innerHTML = `
-    <div id="calendarHead">
-      <button data-step="-1" title="Previous month">&#8249;</button>
-      <b>${monthLabel(year, month)}</b>
-      <button data-step="1" title="Next month">&#8250;</button>
-    </div>
-    <table>
-      <thead><tr>${WEEKDAYS.map((day) => `<th>${day}</th>`).join('')}</tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <div id="calendarTime">
-      time
-      <input id="calendarHours" type="number" min="0" max="23" value="${hours}">
-      :
-      <input id="calendarMinutes" type="number" min="0" max="59" step="5" value="${minutes}">
-      <button id="calendarApply" title="Use this date and time">&#10003;</button>
-    </div>`;
-}
-
-/** Opens the calendar under `field`, on the month that field is already showing. */
-function openCalendar(field) {
-  const at = partsOf(fieldInstant(field));
-  calendar = {
-    field, year: at.year, month: at.month, day: at.day, hours: at.hours, minutes: at.minutes,
-  };
-
-  const host = document.querySelector(`.calendarHost[data-field="${field}"]`);
-  host.appendChild($('#calendar'));
-  $('#calendar').hidden = false;
-  document.querySelectorAll('.calendarToggle').forEach((button) => {
-    button.setAttribute('aria-expanded', String(button.dataset.field === field));
-  });
-  drawCalendar();
-}
-
-function closeCalendar() {
-  calendar = null;
-  $('#calendar').hidden = true;
-  document.querySelectorAll('.calendarToggle').forEach((button) => {
-    button.setAttribute('aria-expanded', 'false');
-  });
-}
-
-/** Writes the picked instant into the field and applies it, as clicking an anchor does. */
-function applyCalendar() {
-  const { year, month, day } = calendar;
-  const { hours, minutes } = clampTime(calendar.hours, calendar.minutes);
-  const picked = instantOf({ year, month, day, hours, minutes });
-
-  $(`#${calendar.field}`).value = formatLocal(picked);
-  // The field just edited is the one to keep if the pair is longer than a day.
-  applyRange({ anchor: calendar.field === 'rangeFrom' ? 'start' : 'end' });
-}
-
-function buildCalendar() {
-  document.querySelectorAll('.calendarToggle').forEach((button) => {
-    button.onclick = () => {
-      if (calendar?.field === button.dataset.field) closeCalendar();
-      else openCalendar(button.dataset.field);
-    };
-  });
-
-  $('#calendar').addEventListener('click', (event) => {
-    const stepper = event.target.closest('[data-step]');
-    if (stepper) {
-      calendar = { ...calendar, ...shiftMonth(calendar.year, calendar.month, Number(stepper.dataset.step)) };
-      drawCalendar();
-      return;
-    }
-
-    const day = event.target.closest('[data-day]');
-    if (day) {
-      // Chosen, not applied: the time may still need setting, and applying here would close
-      // the panel before it could be.
-      calendar.day = Number(day.dataset.day);
-      drawCalendar();
-      return;
-    }
-
-    if (event.target.closest('#calendarApply')) applyCalendar();
-  });
-
-  // Enter is the same as the tick: a time typed rather than stepped should not need the mouse.
-  $('#calendar').addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') applyCalendar();
-  });
-
-  // Remembered, not redrawn. Redrawing here replaced the very input being clicked, so a
-  // stepper set the value and then lost it in the same breath.
-  $('#calendar').addEventListener('input', (event) => {
-    if (event.target.id === 'calendarHours') calendar.hours = Number(event.target.value);
-    if (event.target.id === 'calendarMinutes') calendar.minutes = Number(event.target.value);
-  });
-}
-
-function buildRangePicker() {
-  $('#quickRanges').innerHTML = QUICK_RANGES
-    .map((quick) => `<button data-from="${quick.from}">${quick.label}</button>`)
-    .join('');
-  $('#startAnchors').innerHTML = START_ANCHORS
-    .map((anchor) => `<button data-days="${anchor.days}">${anchor.label}`
-      + ` <span class="muted">00:00</span></button>`)
-    .join('');
-  $('#durations').innerHTML = DURATIONS
-    .map((duration) => `<button data-ms="${duration.ms}">${duration.label}</button>`)
-    .join('');
-
-  document.querySelectorAll('#quickRanges button').forEach((button) => {
-    button.onclick = () => setRange({ from: button.dataset.from, to: 'now' });
-  });
-  document.querySelectorAll('#startAnchors button').forEach((button) => {
-    // A start point replaces the start and keeps the span, rather than keeping an end that
-    // may now be before it: 7 days ago → 3 days ago used to invert the range and fail.
-    button.onclick = () => applyRange({
-      startMs: anchorStart(Number(button.dataset.days)),
-      durationMs: rangeSpan(),
-      anchor: 'start',
-    });
-  });
-  document.querySelectorAll('#durations button').forEach((button) => {
-    button.onclick = () => applyRange({ durationMs: Number(button.dataset.ms) });
-  });
-  $('#untilNow').onclick = () => applyRange({ untilNow: true });
-
-  $('#rangeButton').onclick = () => {
-    if ($('#rangePanel').hidden) openRangePanel();
-    else closeRangePanel();
-  };
-  // Editing one end keeps it and moves the other, if the pair is longer than a day.
-  $('#rangeFrom').onkeydown = (event) => {
-    if (event.key === 'Enter') applyRange({ anchor: 'start' });
-  };
-  $('#rangeTo').onkeydown = (event) => {
-    if (event.key === 'Enter') applyRange({ anchor: 'end' });
-  };
-
-  // Clicking anywhere else closes it, like every other popover.
-  document.addEventListener('click', (event) => {
-    if (!$('#rangePanel').hidden && !event.target.closest('#rangePicker')) closeRangePanel();
-  });
+  header.sync();
 }
 
 function init() {
-  $('#apiUrl').value = api.baseUrl;
+  header = mountHeader({
+    page: 'timeline',
+    extras: EXTRAS,
+    onViewChange: ({ reason }) => {
+      writeUrl();
+      // A clock is a display setting: everything is relabelled, nothing is refetched.
+      if (reason === 'zone') draw();
+      else load();
+    },
+    onReload: ({ force = false } = {}) => load({ force }),
+    onApiUrlChange: (url) => {
+      clearCache(api.baseUrl); // the server we are leaving, before the handle changes
+      api = clientFor(url); // a new server means new caches
+      load();
+    },
+  });
+  api = clientFor(header.apiUrl);
   readUrl();
-  buildRangePicker();
-  buildCalendar();
-  buildRefreshControl();
 
   $('#mGraph').onclick = () => setMode('graph');
   $('#mAgg').onclick = () => setMode('agg');
@@ -1390,35 +1005,6 @@ function init() {
     if (event.key === 'Escape') { $('#flowFilter').value = state.flowFilter; syncFlowFilterBox(); }
   };
   $('#flowFilterApply').onclick = applyFlowFilter;
-  $('#refresh').onclick = () => load({ force: true });
-
-  // A display setting: nothing is refetched, everything is relabelled. The range keeps its
-  // meaning too — "now-6h" is the same six hours whichever clock names them.
-  $('#zoneToggle').onclick = () => {
-    // Resolved on the old clock, rewritten for the new one: a range fixed at 11:00 in
-    // +03:00 becomes 08:00 in UTC and covers the same runs, rather than jumping by the
-    // offset because a bare stamp is read in whichever zone is current.
-    const showing = resolveRange(state.range);
-
-    localStorage.zone = setZone(getZone() === 'utc' ? 'local' : 'utc');
-    if (showing) state.range = restampRange(state.range, showing);
-
-    syncControls();
-    writeUrl();
-    draw();
-  };
-
-  // Nothing to choose when the API is next to us, or when a deployment pinned it: the field
-  // is hidden rather than shown filled in and ignored.
-  $('#apiUrl').hidden = !API_URL_EDITABLE;
-  if (API_URL_EDITABLE) {
-    $('#apiUrl').onchange = () => {
-      localStorage.apiUrl = $('#apiUrl').value;
-      clearCache(api.baseUrl);
-      api = clientFor($('#apiUrl').value); // a new server means new caches
-      load();
-    };
-  }
 
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
@@ -1429,6 +1015,7 @@ function init() {
 
   // Back/forward should move through views, not reload the page.
   window.addEventListener('popstate', () => {
+    header.readParams(window.location.search); // the clock, before anything is labelled
     readUrl();
     syncControls();
     // Whatever the entry says, not what is on screen: Back out of a pop-up closes it.
@@ -1436,7 +1023,7 @@ function init() {
     load();
   });
 
-  setRefresh(state.refresh); // installs the timer and syncs the control
+  syncControls();
   writeUrl();
   load();
 }

@@ -18,8 +18,8 @@ refuse to load ES modules from the filesystem.
 
 ## Deploying it
 
-There is nothing to build and no backend of its own: copy `index.html`, `styles.css` and
-`src/` behind any static file server. Serving it from the **same host as the Prefect
+There is nothing to build and no backend of its own: copy `index.html`, `metrics.html`,
+`config.js`, `styles.css` and `src/` behind any static file server. Serving it from the **same host as the Prefect
 server** is worth the trouble — the API is then same-origin at `/api` (no CORS to
 configure), and clicking a run navigates to the Prefect UI in the same tab, which is what
 makes it feel like part of it. An nginx container with the files mounted, behind the same
@@ -29,8 +29,11 @@ ingress as Prefect on a `/monitor/` path, is all it takes.
 
 | File | What lives there |
 |---|---|
-| `index.html`, `styles.css` | markup and styling, no logic |
-| `src/app.js` | DOM wiring: controls, pointer handling, modal, load cycle |
+| `index.html`, `metrics.html` | one page each: the shell the header renders into, and the body below it |
+| `styles.css` | all the styling, for both pages |
+| `src/header.js` | the header bar, and the range, clock and interval both pages share |
+| `src/app.js` | the timeline's DOM wiring: chart controls, pointer handling, modal, load cycle |
+| `src/metrics.js` | the metrics page's DOM wiring — the header, and nothing else yet |
 | `src/prefect-api.js` | the REST client, edge derivation, deep-link URLs |
 | `src/render.js` | builds the timeline SVG, legend, tooltip and state table |
 | `src/layout.js` | pipeline grouping, lane ordering, sub-row packing |
@@ -42,7 +45,29 @@ ingress as Prefect on a `/monitor/` path, is all it takes.
 | `test.js` | `npm test` — covers everything under `src/` that isn't drawing |
 
 `src/render.js` builds markup from data and never touches app state; `src/layout.js`,
-`src/links.js`, `src/states.js` and `src/time.js` are pure and directly unit-tested.
+`src/links.js`, `src/states.js` and `src/time.js` are pure and directly unit-tested. The
+DOM-wiring modules are `src/header.js` and the two page entry points; everything else keeps
+its hands off the document.
+
+## Pages
+
+Two documents rather than two routes behind one. The timeline carries a chart, a zoom bar
+and a stack of pop-ups that a metrics page would load only to hide again, and the server
+already serves any file at the root (`/` is the one path it maps, to `index.html`), so a
+page costs a file and nothing else. The nav links carry the extension for that reason.
+
+The bar across the top is **one implementation**, in `src/header.js`, rendered into the
+empty `<header>` each page leaves for it. Ninety lines of markup copied into a second file
+would not fail when it drifted — those ids are the picker's contract with its wiring, so a
+copy that loses one half-works, silently, in whichever half nobody clicked that day. The
+`<header>` element itself stays in the markup so the sticky bar paints on the first frame
+rather than a module later.
+
+A page passes in what is its own and not the header's: the timeline hands over its mode
+buttons and flow filter as one slot of markup, and the metrics page hands over nothing, so
+it simply has neither. Everything the two must agree on — the range, the clock, the refresh
+interval, the API being read — belongs to the header, and a page reads it back through the
+handle `mountHeader` returns rather than keeping a second copy to fall out of step.
 
 ## Configuring it
 
@@ -103,6 +128,13 @@ it and a pasted link reproduces it for someone else:
 /?from=now-24h&to=now&subflows=<run-id>     a sub-flow pop-up
 /?from=now-24h&to=now&chain=<run-id>        a chain window
 ```
+
+The query has two halves. `from`, `to`, `tz` and `refresh` are the **header's**, and every
+page speaks them — the nav links are stamped with them as the view changes, so switching
+pages keeps the window you were looking at, and cmd-clicking one opens that window in a new
+tab. `mode`, `states`, `flow`, `zoomFrom`/`zoomTo` and the pop-up are the **timeline's**, and
+are dropped on the jump: a `chain=<run-id>` followed onto a page with no chart is a window
+that can never open. A link pasted the other way keeps its range and loses the rest.
 
 The pop-up matters for **Back**: clicking a run navigates to Prefect in this tab, so
 opening a pop-up pushes a history entry and coming back reopens it rather than landing on
@@ -478,7 +510,10 @@ npm test        # node --test, no browser and no Prefect server needed
 
 Covers tick spacing, batch-key vs recency precedence, automation scoping, slug
 resolution, pipeline grouping, lane ordering, sub-row packing and its cap,
-worst-state-wins, and state colouring. Rendering is left to the eye, but the
+worst-state-wins, state colouring, and the half of the view the two pages share. Both
+wiring modules are all DOM and have no unit tests of their own, so a snapshot of the
+functions each defines stands in: one deleted out from under its callers would otherwise
+get as far as the browser. Rendering is left to the eye, but the
 decisions behind it are not.
 
 ## Local caching

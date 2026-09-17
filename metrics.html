@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Metrics — Prefect Monitor</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- Deployment config, before the app: a classic script runs ahead of a module. -->
+  <script src="config.js"></script>
+</head>
+<body>
+  <!-- Filled in by src/header.js, minus the timeline's own controls: this page passes no
+       extras, so there are no mode buttons and no flow filter. -->
+  <header></header>
+
+  <div id="loading" aria-hidden="true"></div>
+  <div id="err"></div>
+
+  <div class="placeholder">
+    <p>Nothing here yet.</p>
+    <p class="muted" id="scaffoldNotice"></p>
+  </div>
+
+  <script type="module" src="src/metrics.js"></script>
+</body>
+</html>

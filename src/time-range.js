@@ -201,6 +201,39 @@ export function describeRange(range) {
 }
 
 /**
+ * The params every page shares: the range, the clock, and the refresh interval.
+ *
+ * Split out of the view because a second page has no mode, no state filter and no pop-up
+ * to restore, and because the nav link between the pages carries exactly this much across.
+ * A `chain=<run-id>` followed onto a page with no chart is a pop-up that can never open.
+ *
+ * @returns {{range: object, refresh: string|null, zone: string|null}}
+ */
+export function sharedFromQuery(search) {
+  const params = new URLSearchParams(search);
+  const from = params.get('from');
+  const to = params.get('to');
+
+  return {
+    range: from && to ? capRange({ from, to }) : { ...DEFAULT_RANGE },
+    refresh: params.get('refresh'),
+    // Which clock to read in. Part of the view, so a pasted link shows the same times to
+    // whoever opens it — the point of sharing one.
+    zone: params.get('tz') === 'utc' ? 'utc' : null,
+  };
+}
+
+/** The shared params, as URLSearchParams so a page can append its own before stringifying. */
+export function sharedToParams({ range, refresh, zone }) {
+  const params = new URLSearchParams();
+  params.set('from', range.from);
+  params.set('to', range.to);
+  if (refresh && refresh !== 'Off') params.set('refresh', refresh);
+  if (zone === 'utc') params.set('tz', 'utc');
+  return params;
+}
+
+/**
  * Reads the view out of a query string, falling back to the default range.
  *
  * The open pop-up is part of the view too: clicking a run navigates to Prefect in this
@@ -211,20 +244,14 @@ export function describeRange(range) {
  */
 export function viewFromQuery(search) {
   const params = new URLSearchParams(search);
-  const from = params.get('from');
-  const to = params.get('to');
 
   return {
-    range: from && to ? capRange({ from, to }) : { ...DEFAULT_RANGE },
+    ...sharedFromQuery(search),
     mode: params.get('mode') === 'agg' || params.get('mode') === 'graph' ? params.get('mode') : null,
     states: (params.get('states') ?? '').split(',').map((s) => s.trim()).filter(Boolean),
     flow: params.get('flow') ?? '',
-    refresh: params.get('refresh'),
     modal: modalFromParams(params),
     zoom: zoomFromParams(params),
-    // Which clock to read in. Part of the view, so a pasted link shows the same times to
-    // whoever opens it — the point of sharing one.
-    zone: params.get('tz') === 'utc' ? 'utc' : null,
   };
 }
 
@@ -256,15 +283,11 @@ function modalFromParams(params) {
 
 /** The query string for a view — everything needed to reproduce it from a paste. */
 export function viewToQuery({ range, mode, states, flow, refresh, modal, zoom, zone }) {
-  const params = new URLSearchParams();
-  params.set('from', range.from);
-  params.set('to', range.to);
+  const params = sharedToParams({ range, refresh, zone });
   if (mode) params.set('mode', mode);
   if (states?.length) params.set('states', states.join(','));
   if (flow) params.set('flow', flow);
-  if (refresh && refresh !== 'Off') params.set('refresh', refresh);
   if (modal && MODAL_PARAMS[modal.kind]) params.set(MODAL_PARAMS[modal.kind], modal.id);
-  if (zone === 'utc') params.set('tz', 'utc');
   if (zoom) {
     params.set('zoomFrom', new Date(zoom.from).toISOString());
     params.set('zoomTo', new Date(zoom.to).toISOString());

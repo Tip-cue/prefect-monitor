@@ -57,7 +57,8 @@ h1 {
 }
 
 input,
-button {
+button,
+#pageNav a {
   padding: 5px 9px;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -66,14 +67,16 @@ button {
   font: inherit;
 }
 
-button {
+button,
+#pageNav a {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   cursor: pointer;
 }
 
-button.on {
+button.on,
+#pageNav a.on {
   border-color: var(--accent);
   background: #1b2a4a;
   color: #fff;
@@ -86,6 +89,18 @@ button.on {
 /* Hidden when the API is same-origin — there is nothing to point it at. */
 #apiUrl[hidden] {
   display: none;
+}
+
+/* Links rather than buttons, so cmd-click and "open in a new tab" work — and since the
+   href already carries the range across, there is nothing for a click handler to do. */
+#pageNav {
+  display: flex;
+  gap: 4px;
+}
+
+#pageNav a {
+  color: var(--muted);
+  text-decoration: none;
 }
 
 .sep {
@@ -844,4 +859,15 @@ table.stat .pct {
 
 table.stat .tot {
   color: var(--muted);
+}
+
+/* ------ a page with nothing on it yet ------ */
+
+.placeholder {
+  margin: 40px auto;
+  max-width: 640px;
+  padding: 24px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  text-align: center;
 }

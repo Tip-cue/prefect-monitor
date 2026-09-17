@@ -37,7 +37,7 @@ import {
 import {
   parseTimeExpression, resolveRange, describeRange, viewFromQuery, viewToQuery, DEFAULT_RANGE,
   QUICK_RANGES, DURATIONS, MAX_RANGE_MS, anchorStart, capRange, composeRange, formatLocal,
-  rangeFromStart, rangeToEnd, restampRange,
+  rangeFromStart, rangeToEnd, restampRange, sharedFromQuery, sharedToParams,
 } from './src/time-range.js';
 
 const iso = (ms) => new Date(ms).toISOString();
@@ -1459,22 +1459,81 @@ test('a zoom survives the range moving under it', async (t) => {
   });
 });
 
-test('app.js still defines the functions it is wired from', () => {
-  const source = readFileSync(new URL('./src/app.js', import.meta.url), 'utf8');
-  const defined = [...source.matchAll(/^(?:async )?function (\w+)/gm)].map((m) => m[1]).sort();
+/**
+ * Both wiring modules are all DOM and have no unit tests, so a function deleted out from
+ * under its callers gets as far as the browser. The `export` in the pattern matters: the
+ * header's entry points are exported, and without it the snapshot would pass while covering
+ * less than it names.
+ */
+test('the half of the view every page shares', async (t) => {
+  // What lets a second page reuse the codec rather than grow one: everything but the range
+  // is optional on the way out, and everything the timeline adds is ignorable on the way in.
+  await t.test('a range, a clock and an interval are the whole of it', () => {
+    assert.equal(
+      `?${sharedToParams({ range: { from: 'now-6h', to: 'now' }, refresh: '30s', zone: 'utc' })}`,
+      '?from=now-6h&to=now&refresh=30s&tz=utc');
+  });
 
-  assert.deepEqual(defined, [
-    'applyCalendar', 'applyFlowFilter', 'applyRange', 'asOfNotice', 'batchOfChain', 'buildCalendar',
-    'buildRangePicker', 'buildRefreshControl', 'clearIsolation', 'closeCalendar',
-    'closeModal', 'closeRangePanel', 'draw', 'drawCalendar', 'drawZoomBar', 'drawnFrom',
-    'drawnWindow', 'fieldInstant', 'highlightLinks', 'init', 'isolateChain',
-    'linkNotice', 'load', 'openCalendar', 'openModal', 'openRangePanel',
-    'openRunInPrefect', 'prefectLink', 'rangeSpan', 'readUrl', 'restoreModalFromUrl',
-    'runNotice', 'setMode', 'setRange', 'setRefresh', 'setZoom', 'showChainWindow',
-    'showError', 'showRangeError', 'showSubflows', 'syncControls', 'syncFlowFilterBox', 'toggleStateFilter',
-    'trackWidth', 'typedTime', 'withAssumedLinks', 'writeUrl',
-  ]);
+  await t.test('off and local are the defaults, so neither needs saying', () => {
+    const params = sharedToParams({ range: DEFAULT_RANGE, refresh: 'Off', zone: null });
+    assert.equal(`?${params}`, '?from=now-6h&to=now');
+  });
+
+  await t.test('a link pasted from the timeline lands on the same window', () => {
+    // The pop-up is the one that would actually break something: a chain=<run-id> followed
+    // onto a page with no chart is a window that can never open.
+    const shared = sharedFromQuery('?from=now-1h&to=now&mode=agg&states=Failed&chain=r1&tz=utc');
+    assert.deepEqual(shared.range, { from: 'now-1h', to: 'now' });
+    assert.equal(shared.zone, 'utc');
+    assert.deepEqual(Object.keys(shared).sort(), ['range', 'refresh', 'zone']);
+  });
+
+  await t.test('a stale shared link is capped like any other', () => {
+    const { range } = sharedFromQuery('?from=2026-08-01 00:00&to=2026-08-08 00:00');
+    assert.equal(range.from, '2026-08-07 00:00', 'kept the recent end');
+  });
+
+  await t.test('the view still round-trips through the wider codec', () => {
+    const view = { range: DEFAULT_RANGE, mode: 'agg', states: ['Failed'], refresh: '30s', zone: 'utc' };
+    const read = viewFromQuery(viewToQuery(view));
+    assert.deepEqual(read.range, DEFAULT_RANGE);
+    assert.equal(read.mode, 'agg');
+    assert.deepEqual(read.states, ['Failed']);
+    assert.equal(read.refresh, '30s');
+    assert.equal(read.zone, 'utc');
+  });
 });
+
+const WIRED_FUNCTIONS = {
+  'src/app.js': [
+    'applyFlowFilter', 'asOfNotice', 'batchOfChain', 'clearIsolation', 'closeModal', 'draw',
+    'drawZoomBar', 'drawnFrom', 'drawnWindow', 'highlightLinks', 'init', 'isolateChain',
+    'linkNotice', 'load', 'openModal', 'openRunInPrefect', 'prefectLink', 'readUrl',
+    'restoreModalFromUrl', 'runNotice', 'setMode', 'setZoom', 'showChainWindow', 'showError',
+    'showSubflows', 'syncControls', 'syncFlowFilterBox', 'toggleStateFilter', 'trackWidth',
+    'withAssumedLinks', 'writeUrl',
+  ],
+  'src/header.js': [
+    'applyCalendar', 'applyRange', 'buildCalendar', 'buildRangePicker', 'buildRefreshControl',
+    'closeCalendar', 'closeRangePanel', 'drawCalendar', 'fieldInstant', 'headerHtml',
+    'mountHeader', 'navHtml', 'openCalendar', 'openRangePanel', 'params', 'query', 'rangeSpan',
+    'readParams', 'refreshMs', 'setRange', 'setRefresh', 'showRangeError', 'syncHeader',
+    'syncNav', 'typedTime',
+  ],
+};
+
+test('the wiring modules still define the functions they are wired from', async (t) => {
+  for (const [path, expected] of Object.entries(WIRED_FUNCTIONS)) {
+    await t.test(path, () => {
+      const source = readFileSync(new URL(`./${path}`, import.meta.url), 'utf8');
+      const defined = [...source.matchAll(/^(?:export )?(?:async )?function (\w+)/gm)]
+        .map((m) => m[1]).sort();
+
+      assert.deepEqual(defined, expected);
+    });
+  }
+});
+
 
 test('a cached run keeps the labels the fallback matches on', () => {
   // Dropping tags and parameters from the projection left a reloaded window with no labels
