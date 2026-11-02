@@ -129,8 +129,7 @@ function readUrl() {
  * Mirrors the view into the URL.
  *
  * Replace by default, so changing a range or a filter does not fill the history. But
- * *push* when a pop-up opens: clicking a run navigates to Prefect in this tab, and Back
- * should return to the pop-up that was open rather than to a bare chart.
+ * *push* when a pop-up opens, so Back closes it and returns to the chart.
  */
 function writeUrl({ push = false } = {}) {
   const query = viewToQuery({
@@ -538,16 +537,13 @@ function closeModal() {
   }
 }
 
-/**
- * Deployed under the Prefect host these are same-origin, so they navigate in this
- * tab exactly like a link inside the Prefect UI does.
- */
+/** Prefect opens in a new tab, so the monitor and its open pop-up stay where they were. */
 function prefectLink(runId, text) {
-  return `<a class="ext" href="${api.runUrl(runId)}">${text} →</a>`;
+  return `<a class="ext" href="${api.runUrl(runId)}" target="_blank" rel="noopener">${text} →</a>`;
 }
 
 function openRunInPrefect(runId) {
-  window.location.assign(api.runUrl(runId));
+  window.open(api.runUrl(runId), '_blank', 'noopener');
 }
 
 /**

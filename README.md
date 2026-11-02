@@ -21,8 +21,8 @@ refuse to load ES modules from the filesystem.
 There is nothing to build and no backend of its own: copy `index.html`, `styles.css` and
 `src/` behind any static file server. Serving it from the **same host as the Prefect
 server** is worth the trouble — the API is then same-origin at `/api` (no CORS to
-configure), and clicking a run navigates to the Prefect UI in the same tab, which is what
-makes it feel like part of it. An nginx container with the files mounted, behind the same
+configure), and run links point at the Prefect UI on the same host. Links to Prefect
+open in a new tab, so the monitor stays where it was. An nginx container with the files mounted, behind the same
 ingress as Prefect on a `/monitor/` path, is all it takes.
 
 ## Layout
@@ -106,9 +106,8 @@ it and a pasted link reproduces it for someone else:
 /?from=now-24h&to=now&chain=<run-id>        a chain window
 ```
 
-The pop-up matters for **Back**: clicking a run navigates to Prefect in this tab, so
-opening a pop-up pushes a history entry and coming back reopens it rather than landing on
-a bare chart. Everything else replaces, so changing a range does not fill the history. A
+Opening a pop-up pushes a history entry, so **Back** closes it, and a pasted link
+reopens it. Everything else replaces, so changing a range does not fill the history. A
 run that is no longer in the window is fetched by id rather than given up on.
 
 The flow name filter is applied **at the server** as well as on screen: the run queries

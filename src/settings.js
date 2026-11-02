@@ -8,8 +8,7 @@
  *                     this file: the bundled server renders it from the environment, and a
  *                     container image can do the same at startup.
  *   2. the same origin — served next to the Prefect server, `/api` is right and needs no
- *                     configuring at all. This is the case worth optimising for: no CORS,
- *                     and run links open in the same tab.
+ *                     configuring at all. This is the case worth optimising for: no CORS.
  *   3. localStorage — what the reader last typed into the header field.
  *
  * Pure, so the precedence is testable: it is the kind of rule that otherwise breaks
