@@ -519,10 +519,25 @@ function showError(error) {
 
 /* --------------------------------- modal ---------------------------------- */
 
-function openModal(titleHtml) {
+/** The run a single-run pop-up is about: what its tabs switch between views of. */
+let tabRun = null;
+
+/**
+ * `tab` names the active tab of a single-run pop-up, which shows the run's sub-flows and
+ * artifacts as tabs the way the Prefect run page does; without it there are no tabs.
+ * 'undecided' draws the tabs with none active, while a click still works out which to open.
+ */
+function openModal(titleHtml, { run = null, tab = null } = {}) {
   const wasOpen = $('#modal').style.display === 'flex';
   $('#modal').style.display = 'flex';
   $('#modalTitle').innerHTML = titleHtml;
+
+  tabRun = tab ? run : null;
+  $('#modalTabs').hidden = !tab;
+  $('#modalTabs').innerHTML = tab
+    ? [['subflows', 'Sub-flow runs'], ['artifacts', 'Artifacts']].map(([name, label]) => (
+      `<button role="tab" data-tab="${name}" aria-selected="${name === tab}">${label}</button>`)).join('')
+    : '';
 
   // Only blank it when it is actually opening. A refresh tick re-renders an open pop-up,
   // and clearing it first would flash "loading…" over the chart every few seconds.
@@ -552,6 +567,10 @@ function openRunInPrefect(runId) {
  */
 let modalRender = 0;
 
+function runTitle(run) {
+  return `${escapeHtml(flowName(run.flow_id))} / ${escapeHtml(run.name)} ${prefectLink(run.id, 'open in Prefect')}`;
+}
+
 /** A run's artifacts and its sub-flows', one frame per run, stacked in the pop-up's scroll. */
 async function showArtifacts(run, { remember = true } = {}) {
   const render = ++modalRender;
@@ -560,14 +579,24 @@ async function showArtifacts(run, { remember = true } = {}) {
     state.modal = { kind: 'artifacts', id: run.id };
     writeUrl({ push: true });
   }
-  openModal(`${escapeHtml(flowName(run.flow_id))} / ${escapeHtml(run.name)} ${prefectLink(run.id, 'open in Prefect')}
-    <a class="ext" href="#" data-subflows="${run.id}">sub-flows →</a>`);
+  // A click opens whichever tab has something in it, so none is active until that is known.
+  openModal(runTitle(run), { run, tab: remember ? 'undecided' : 'artifacts' });
 
   try {
     const runs = (await api.fetchRunTree(run)).sort((a, b) => runStart(a) - runStart(b));
     const artifacts = await api.fetchArtifacts(runs.map((each) => each.id));
     if (render !== modalRender) return;
 
+    // Opened by a click and nothing to show: the sub-flows are the more useful first view.
+    // Not when the artifacts tab was asked for, by the tab itself or by a pasted link.
+    if (remember && artifacts.length === 0) {
+      state.modal = { kind: 'subflows', id: run.id };
+      writeUrl();
+      showSubflows([run], '', { remember: false });
+      return;
+    }
+
+    $('#modalTabs [data-tab="artifacts"]').setAttribute('aria-selected', 'true');
     $('#modalChart').innerHTML = artifactGroupsHtml(runs.map((each) => ({
       title: `${escapeHtml(flowName(each.flow_id))} / ${escapeHtml(each.name)} ${prefectLink(each.id, 'open')}`,
       artifacts: artifacts.filter((artifact) => artifact.flow_run_id === each.id),
@@ -588,7 +617,8 @@ async function showSubflows(parentRuns, title, { remember = true } = {}) {
       : { kind: 'subflowsOf', id: parentRuns[0]?.flow_id };
     writeUrl({ push: true });
   }
-  openModal(escapeHtml(title) + (single ? ` ${prefectLink(single.id, 'open in Prefect')}` : ''));
+  if (single) openModal(runTitle(single), { run: single, tab: 'subflows' });
+  else openModal(escapeHtml(title));
 
   try {
     const { runs: subflowRuns, parentByRun } = await api.fetchSubflowRuns(
@@ -966,10 +996,13 @@ document.addEventListener('click', (event) => {
     return;
   }
 
-  if (target.dataset?.subflows) {
-    event.preventDefault();
-    const run = state.view?.runs.find((each) => each.id === target.dataset.subflows);
-    if (run) showSubflows([run], `Sub-flows of ${flowName(run.flow_id)} / ${run.name}`);
+  const tab = target.closest?.('#modalTabs [data-tab]');
+  if (tab && tabRun) {
+    // Replaced, not pushed: switching tabs is still the same pop-up, and Back closes it.
+    state.modal = { kind: tab.dataset.tab, id: tabRun.id };
+    writeUrl();
+    if (tab.dataset.tab === 'artifacts') showArtifacts(tabRun, { remember: false });
+    else showSubflows([tabRun], '', { remember: false });
     return;
   }
 
