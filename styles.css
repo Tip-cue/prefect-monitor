@@ -917,3 +917,34 @@ table.stat .tot {
 .artifact-frame .artifact-table td {
   border-color: #3a4656;
 }
+
+/* ------------------------------ pop-up tabs ------------------------------- */
+
+/* The Prefect run page's tabs: plain labels on a rule, the active one underlined. */
+#modalTabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 12px;
+  border-bottom: 1px solid #3a4656;
+}
+
+#modalTabs button {
+  margin-bottom: -1px;
+  padding: 10px 14px;
+  border: none;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#modalTabs button:hover {
+  color: var(--ink);
+}
+
+#modalTabs button[aria-selected="true"] {
+  border-bottom-color: var(--ink);
+  color: #fff;
+}

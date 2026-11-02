@@ -1470,7 +1470,7 @@ test('app.js still defines the functions it is wired from', () => {
     'drawnWindow', 'fieldInstant', 'highlightLinks', 'init', 'isolateChain',
     'linkNotice', 'load', 'openCalendar', 'openModal', 'openRangePanel',
     'openRunInPrefect', 'prefectLink', 'rangeSpan', 'readUrl', 'restoreModalFromUrl',
-    'runNotice', 'setMode', 'setRange', 'setRefresh', 'setZoom', 'showArtifacts', 'showChainWindow',
+    'runNotice', 'runTitle', 'setMode', 'setRange', 'setRefresh', 'setZoom', 'showArtifacts', 'showChainWindow',
     'showError', 'showRangeError', 'showSubflows', 'syncControls', 'syncFlowFilterBox', 'toggleStateFilter',
     'trackWidth', 'typedTime', 'withAssumedLinks', 'writeUrl',
   ]);
