@@ -1470,7 +1470,7 @@ test('app.js still defines the functions it is wired from', () => {
     'drawnWindow', 'fieldInstant', 'highlightLinks', 'init', 'isolateChain',
     'linkNotice', 'load', 'openCalendar', 'openModal', 'openRangePanel',
     'openRunInPrefect', 'prefectLink', 'rangeSpan', 'readUrl', 'restoreModalFromUrl',
-    'runNotice', 'setMode', 'setRange', 'setRefresh', 'setZoom', 'showChainWindow',
+    'runNotice', 'setMode', 'setRange', 'setRefresh', 'setZoom', 'showArtifacts', 'showChainWindow',
     'showError', 'showRangeError', 'showSubflows', 'syncControls', 'syncFlowFilterBox', 'toggleStateFilter',
     'trackWidth', 'typedTime', 'withAssumedLinks', 'writeUrl',
   ]);
@@ -1530,4 +1530,31 @@ test('the cache stores every field the next load reads back', () => {
   assert.equal(readCache('http://p/api').runs.length, 1, 'the unfiltered entry is untouched');
   assert.equal(readCache('http://p/api', 'planetiq').runs.length, 0);
   assert.equal(readCache('http://p/api', 'PLANETIQ').runs.length, 0, 'the server matches case-insensitively, so the key does too');
+});
+
+test('artifacts: markdown and tables render, and text is escaped', async () => {
+  const { artifactHtml } = await import('./src/artifacts.js');
+  const md = artifactHtml({ type: 'markdown', data: '# T\n**b** `c` <script>\n- [x](https://a.b)' });
+  assert.match(md, /<h1>T<\/h1>/);
+  assert.match(md, /<b>b<\/b> <code>c<\/code> &lt;script&gt;/);
+  assert.match(md, /<ul><li><a href="https:\/\/a.b"/);
+  const table = artifactHtml({ type: 'table', data: JSON.stringify([{ a: 1, b: '<x>' }]) });
+  assert.match(table, /<th>a<\/th><th>b<\/th>.*<td>1<\/td><td>&lt;x&gt;<\/td>/);
+});
+
+test('artifacts: a key published twice shows once, oldest key first', async () => {
+  const { latestPerKey } = await import('./src/artifacts.js');
+  const got = latestPerKey([{ key: 'b', id: 3 }, { key: 'a', id: 2 }, { key: 'a', id: 1 }]);
+  assert.deepEqual(got.map((a) => a.id), [2, 3]);
+});
+
+test('artifacts: framed per run, runs without any left out', async () => {
+  const { artifactGroupsHtml } = await import('./src/artifacts.js');
+  const html = artifactGroupsHtml([
+    { title: 'parent', artifacts: [] },
+    { title: 'child', artifacts: [{ type: 'markdown', data: 'hi' }] },
+  ]);
+  assert.ok(!html.includes('parent'));
+  assert.match(html, /<div class="artifact-run">child<\/div><div class="artifact-frame"><section class="artifact"><p>hi<\/p>/);
+  assert.match(artifactGroupsHtml([{ title: 'x', artifacts: [] }]), /no artifacts/);
 });

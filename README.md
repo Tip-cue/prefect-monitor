@@ -37,6 +37,7 @@ ingress as Prefect on a `/monitor/` path, is all it takes.
 | `src/zoom.js` | drag- and wheel-zoom geometry and the scroll bar's thumb |
 | `src/calendar.js` | month grids for the date picker |
 | `src/zone.js` | local-or-UTC: every timestamp on screen is formatted here |
+| `src/artifacts.js` | a run's artifacts as HTML: markdown, tables, one frame per run |
 | `src/links.js` | linking runs to what triggered them, chains, chain filtering |
 | `src/states.js`, `src/time.js` | state colour/severity, timestamps and ticks |
 | `test.js` | `npm test` — covers everything under `src/` that isn't drawing |
@@ -101,6 +102,7 @@ it and a pasted link reproduces it for someone else:
 /?from=now-6h&to=now&mode=agg&states=Failed&refresh=30s
 /?from=now-6h&to=now&flow=planetiq              only flows whose name contains this
 /?from=now-24h&to=now&subflows=<run-id>     a sub-flow pop-up
+/?from=now-24h&to=now&artifacts=<run-id>    a run's artifacts, and its sub-flows'
 /?from=now-24h&to=now&chain=<run-id>        a chain window
 ```
 
