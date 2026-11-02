@@ -257,6 +257,25 @@ export class PrefectApi {
     return { runs, parentByRun };
   }
 
+  /** Artifacts the given runs published, newest first. */
+  fetchArtifacts(runIds) {
+    return this.request('/artifacts/filter', {
+      body: { artifacts: { flow_run_id: { any_: runIds } }, sort: 'CREATED_DESC', limit: 200 },
+    });
+  }
+
+  /** A run and every sub-flow run under it, however deep, one request per level. */
+  async fetchRunTree(run, maxDepth = 5) {
+    const all = [run];
+    let level = [run];
+
+    for (let depth = 0; depth < maxDepth && level.length > 0; depth++) {
+      level = await this.fetchRuns({ parent_flow_run_id: { any_: level.map((each) => each.id) } });
+      all.push(...level);
+    }
+    return all;
+  }
+
   async fetchFlows() {
     return this.#fetchAllPages('/flows/filter', { sort: 'NAME_ASC' }, 1000);
   }

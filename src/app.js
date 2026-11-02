@@ -1,5 +1,6 @@
 /** Wires the DOM to the Prefect API and the renderer. */
 
+import { artifactGroupsHtml } from './artifacts.js';
 import { PrefectApi, BATCH_PAYLOAD_KEYS } from './prefect-api.js';
 import { runStart, runEnd, formatDuration } from './time.js';
 import {
@@ -319,6 +320,7 @@ async function restoreModalFromUrl({ rerender = false } = {}) {
   if (!run) return; // the run is gone; leave the chart as it is
 
   if (wanted.kind === 'chain') showChainWindow(chart, run, { remember: false });
+  else if (wanted.kind === 'artifacts') showArtifacts(run, { remember: false });
   else {
     showSubflows([run], `Sub-flows of ${flowName(run.flow_id)} / ${run.name}`, { remember: false });
   }
@@ -553,6 +555,31 @@ function openRunInPrefect(runId) {
  * still be in flight when the next one starts; the older one must not paint over it.
  */
 let modalRender = 0;
+
+/** A run's artifacts and its sub-flows', one frame per run, stacked in the pop-up's scroll. */
+async function showArtifacts(run, { remember = true } = {}) {
+  const render = ++modalRender;
+
+  if (remember) {
+    state.modal = { kind: 'artifacts', id: run.id };
+    writeUrl({ push: true });
+  }
+  openModal(`${escapeHtml(flowName(run.flow_id))} / ${escapeHtml(run.name)} ${prefectLink(run.id, 'open in Prefect')}
+    <a class="ext" href="#" data-subflows="${run.id}">sub-flows →</a>`);
+
+  try {
+    const runs = (await api.fetchRunTree(run)).sort((a, b) => runStart(a) - runStart(b));
+    const artifacts = await api.fetchArtifacts(runs.map((each) => each.id));
+    if (render !== modalRender) return;
+
+    $('#modalChart').innerHTML = artifactGroupsHtml(runs.map((each) => ({
+      title: `${escapeHtml(flowName(each.flow_id))} / ${escapeHtml(each.name)} ${prefectLink(each.id, 'open')}`,
+      artifacts: artifacts.filter((artifact) => artifact.flow_run_id === each.id),
+    })));
+  } catch (error) {
+    if (render === modalRender) $('#modalChart').textContent = error.message;
+  }
+}
 
 /** Sub-flow runs of the given parents, drawn as their own timeline. */
 async function showSubflows(parentRuns, title, { remember = true } = {}) {
@@ -925,10 +952,11 @@ document.addEventListener('click', (event) => {
     if (target.closest('#modalChart')) {
       openRunInPrefect(run.id); // in the pop-up: straight to the run in Prefect
     } else {
-      // A bin holds many runs; a graph mark holds one. Otherwise identical.
-      showSubflows(mark.runs, mark.runs.length > 1
-        ? `Sub-flows of ${flowName(run.flow_id)} — ${mark.runs.length} runs`
-        : `Sub-flows of ${flowName(run.flow_id)} / ${run.name}`);
+      // A bin holds many runs: their sub-flows. A graph mark holds one: its artifacts,
+      // with the sub-flows a click away in the pop-up.
+      if (mark.runs.length > 1) {
+        showSubflows(mark.runs, `Sub-flows of ${flowName(run.flow_id)} — ${mark.runs.length} runs`);
+      } else showArtifacts(run);
     }
     return;
   }
@@ -939,6 +967,13 @@ document.addEventListener('click', (event) => {
     if (laneRuns.length > 0) {
       showSubflows(laneRuns, `Sub-flows of ${flowName(flowId)} (${laneRuns.length} runs)`);
     }
+    return;
+  }
+
+  if (target.dataset?.subflows) {
+    event.preventDefault();
+    const run = state.view?.runs.find((each) => each.id === target.dataset.subflows);
+    if (run) showSubflows([run], `Sub-flows of ${flowName(run.flow_id)} / ${run.name}`);
     return;
   }
 

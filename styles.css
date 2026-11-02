@@ -845,3 +845,75 @@ table.stat .pct {
 table.stat .tot {
   color: var(--muted);
 }
+
+/* -------------------------------- artifacts ------------------------------- */
+
+.artifact {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.artifact h1, .artifact h2, .artifact h3 {
+  margin: 10px 0 6px;
+}
+
+.artifact p, .artifact ul {
+  margin: 6px 0;
+}
+
+.artifact code, .artifact pre {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #1c2531;
+}
+
+.artifact a {
+  color: var(--accent);
+}
+
+.artifact-table {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.artifact-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.artifact-table th, .artifact-table td {
+  padding: 8px 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.artifact-table td {
+  border-top: 1px solid var(--line);
+}
+
+.artifact-run {
+  margin: 18px 0 6px;
+  font-weight: 600;
+}
+
+/* Prefect's look: a darker card with a border that reads against the pop-up. */
+.artifact-frame {
+  padding: 4px 16px;
+  border: 1px solid #3a4656;
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.artifact-frame .artifact {
+  border-bottom-color: #3a4656;
+}
+
+.artifact-frame .artifact:last-child {
+  border-bottom: none;
+}
+
+.artifact-frame .artifact-table,
+.artifact-frame .artifact-table td {
+  border-color: #3a4656;
+}

@@ -243,6 +243,7 @@ function zoomFromParams(params) {
 const MODAL_PARAMS = {
   subflows: 'subflows',       // sub-flows of one run
   subflowsOf: 'subflowsOf',   // sub-flows of every run of one flow
+  artifacts: 'artifacts',     // one run's artifacts
   chain: 'chain',             // one run's chain, in its own window
 };
 
