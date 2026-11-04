@@ -330,11 +330,15 @@ function countColumns(geometry) {
   return `${separators}${gutterEdge}${headers}${totalHeader}`;
 }
 
-/** One rounded area per pipeline, captioned with its root flow. */
+/**
+ * One rounded area per pipeline, captioned with its root flow. Like a spreadsheet's banded
+ * rows, the fill alternates between a faint and a strong accent blue so neighbouring
+ * groups read apart.
+ */
 function groupBoxes(groups, geometry, flowName, textWidth) {
-  return geometry.boxes.map(({ group, top, bottom, captionHeight }) => {
+  return geometry.boxes.map(({ group, top, bottom, captionHeight }, index) => {
     const box = `<rect x="4" y="${top}" width="${geometry.width - 10}" height="${bottom - top}"
-                       rx="10" fill="#7f9dd10a" stroke="var(--line)"/>`;
+                       rx="10" fill="${index % 2 ? '#4e82fe33' : '#4e82fe0a'}" stroke="var(--line)"/>`;
     if (!captionHeight) return box;
 
     // Trimmed to the name column: the gutter beyond it is the counts table.
