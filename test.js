@@ -1471,7 +1471,7 @@ test('app.js still defines the functions it is wired from', () => {
     'linkNotice', 'load', 'openCalendar', 'openModal', 'openRangePanel',
     'openRunInPrefect', 'prefectLink', 'rangeSpan', 'readUrl', 'restoreModalFromUrl',
     'runNotice', 'runTitle', 'setMode', 'setRange', 'setRefresh', 'setZoom', 'showArtifacts', 'showChainWindow',
-    'showError', 'showRangeError', 'showSubflows', 'syncControls', 'syncFlowFilterBox', 'toggleStateFilter',
+    'showError', 'showLogs', 'showRangeError', 'showSubflows', 'syncControls', 'syncFlowFilterBox', 'toggleStateFilter',
     'trackWidth', 'typedTime', 'withAssumedLinks', 'writeUrl',
   ]);
 });
@@ -1557,4 +1557,15 @@ test('artifacts: framed per run, runs without any left out', async () => {
   assert.ok(!html.includes('parent'));
   assert.match(html, /<div class="artifact-run">child<\/div><div class="artifact-frame"><section class="artifact"><p>hi<\/p>/);
   assert.match(artifactGroupsHtml([{ title: 'x', artifacts: [] }]), /no artifacts/);
+});
+
+test('logs: framed per run, level named, message escaped', async () => {
+  const { logGroupsHtml } = await import('./src/artifacts.js');
+  const html = logGroupsHtml([
+    { title: 'parent', logs: [] },
+    { title: 'child', logs: [{ timestamp: '2026-11-06T10:00:00Z', level: 40, message: '<b>boom</b>' }] },
+  ], () => '10:00:00');
+  assert.ok(!html.includes('parent'));
+  assert.match(html, /class="log-line log-error"><span class="log-time">10:00:00<\/span><span class="log-level">ERROR<\/span><span>&lt;b&gt;boom/);
+  assert.match(logGroupsHtml([{ title: 'x', logs: [] }], String), /no logs/);
 });

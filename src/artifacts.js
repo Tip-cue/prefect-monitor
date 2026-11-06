@@ -67,6 +67,26 @@ export function latestPerKey(artifacts) {
   }).reverse();
 }
 
+const LEVELS = { 10: 'DEBUG', 20: 'INFO', 30: 'WARNING', 40: 'ERROR', 50: 'CRITICAL' };
+
+/**
+ * Logs framed per run, like the artifacts: one line each, time, level and message.
+ *
+ * @param {{title: string, logs: object[]}[]} groups `title` is already HTML
+ * @param {(ms: number) => string} formatTime the pop-up's clock, in the chosen zone
+ */
+export function logGroupsHtml(groups, formatTime) {
+  const shown = groups.filter((group) => group.logs.length > 0);
+  if (shown.length === 0) return '<p class="muted">no logs for this run or its sub-flows</p>';
+  return shown.map(({ title, logs }) => `<div class="artifact-run">${title}</div><div class="artifact-frame log-frame">${
+    logs.map(({ timestamp, level, message }) => {
+      const name = LEVELS[level] ?? String(level);
+      return `<div class="log-line log-${name.toLowerCase()}"><span class="log-time">${
+        formatTime(Date.parse(timestamp))}</span><span class="log-level">${name}</span><span>${
+        escapeHtml(message)}</span></div>`;
+    }).join('')}</div>`).join('');
+}
+
 /**
  * Artifacts framed by the run that published them: a flow's artifacts mostly live in its
  * sub-flows, and without the frame there is no telling which sub-flow said what.

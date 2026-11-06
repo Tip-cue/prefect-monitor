@@ -957,3 +957,42 @@ table.stat .tot {
   border-bottom-color: var(--ink);
   color: #fff;
 }
+
+/* ---------------------------------- logs ---------------------------------- */
+
+/* Prefect's log view: monospace lines, time and level in fixed columns, long lines wrap. */
+.log-frame {
+  padding: 8px 12px;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.log-line {
+  display: grid;
+  grid-template-columns: max-content 7ch 1fr;
+  gap: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.log-time {
+  color: var(--muted);
+}
+
+.log-level {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.log-warning .log-level {
+  color: #f5a623;
+}
+
+.log-error .log-level,
+.log-critical .log-level {
+  color: #fb4e4e;
+}
+
+.log-error,
+.log-critical {
+  background: #fb4e4e14;
+}

@@ -264,6 +264,12 @@ export class PrefectApi {
     });
   }
 
+  /** Oldest first, as they were written. ponytail: capped at 5000 lines, page on scroll if a run outgrows it. */
+  fetchLogs(runIds) {
+    return this.#fetchAllPages('/logs/filter',
+      { logs: { flow_run_id: { any_: runIds } }, sort: 'TIMESTAMP_ASC' }, 5000);
+  }
+
   /** A run and every sub-flow run under it, however deep, one request per level. */
   async fetchRunTree(run, maxDepth = 5) {
     const all = [run];

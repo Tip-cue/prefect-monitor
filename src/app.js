@@ -1,6 +1,6 @@
 /** Wires the DOM to the Prefect API and the renderer. */
 
-import { artifactGroupsHtml } from './artifacts.js';
+import { artifactGroupsHtml, logGroupsHtml } from './artifacts.js';
 import { PrefectApi, BATCH_PAYLOAD_KEYS } from './prefect-api.js';
 import { runStart, runEnd, formatDuration } from './time.js';
 import {
@@ -23,7 +23,7 @@ import {
 } from './zoom.js';
 import { readCache, writeCache, clearCache } from './browser-cache.js';
 import { apiUrlEditable, resolveApiUrl, resolveBatchKeys } from './settings.js';
-import { formatFull, getZone, setZone, zoneLabel } from './zone.js';
+import { formatFull, formatTime, getZone, setZone, zoneLabel } from './zone.js';
 import {
   WEEKDAYS, clampTime, instantOf, monthGrid, monthLabel, partsOf, shiftMonth,
 } from './calendar.js';
@@ -320,6 +320,7 @@ async function restoreModalFromUrl({ rerender = false } = {}) {
 
   if (wanted.kind === 'chain') showChainWindow(chart, run, { remember: false });
   else if (wanted.kind === 'artifacts') showArtifacts(run, { remember: false });
+  else if (wanted.kind === 'logs') showLogs(run);
   else {
     showSubflows([run], `Sub-flows of ${flowName(run.flow_id)} / ${run.name}`, { remember: false });
   }
@@ -523,8 +524,8 @@ function showError(error) {
 let tabRun = null;
 
 /**
- * `tab` names the active tab of a single-run pop-up, which shows the run's sub-flows and
- * artifacts as tabs the way the Prefect run page does; without it there are no tabs.
+ * `tab` names the active tab of a single-run pop-up, which shows the run's sub-flows,
+ * artifacts and logs as tabs the way the Prefect run page does; without it there are no tabs.
  * 'undecided' draws the tabs with none active, while a click still works out which to open.
  */
 function openModal(titleHtml, { run = null, tab = null } = {}) {
@@ -535,7 +536,7 @@ function openModal(titleHtml, { run = null, tab = null } = {}) {
   tabRun = tab ? run : null;
   $('#modalTabs').hidden = !tab;
   $('#modalTabs').innerHTML = tab
-    ? [['subflows', 'Sub-flow runs'], ['artifacts', 'Artifacts']].map(([name, label]) => (
+    ? [['subflows', 'Sub-flow runs'], ['artifacts', 'Artifacts'], ['logs', 'Logs']].map(([name, label]) => (
       `<button role="tab" data-tab="${name}" aria-selected="${name === tab}">${label}</button>`)).join('')
     : '';
 
@@ -601,6 +602,28 @@ async function showArtifacts(run, { remember = true } = {}) {
       title: `${escapeHtml(flowName(each.flow_id))} / ${escapeHtml(each.name)} ${prefectLink(each.id, 'open')}`,
       artifacts: artifacts.filter((artifact) => artifact.flow_run_id === each.id),
     })));
+  } catch (error) {
+    if (render === modalRender) $('#modalChart').textContent = error.message;
+  }
+}
+
+/**
+ * A run's logs and its sub-flows', one frame per run, like the artifacts. Fetched only when
+ * the tab is opened: a pipeline's logs run to thousands of lines.
+ */
+async function showLogs(run) {
+  const render = ++modalRender;
+  openModal(runTitle(run), { run, tab: 'logs' });
+
+  try {
+    const runs = (await api.fetchRunTree(run)).sort((a, b) => runStart(a) - runStart(b));
+    const logs = await api.fetchLogs(runs.map((each) => each.id));
+    if (render !== modalRender) return;
+
+    $('#modalChart').innerHTML = logGroupsHtml(runs.map((each) => ({
+      title: `${escapeHtml(flowName(each.flow_id))} / ${escapeHtml(each.name)} ${prefectLink(each.id, 'open')}`,
+      logs: logs.filter((log) => log.flow_run_id === each.id),
+    })), formatTime);
   } catch (error) {
     if (render === modalRender) $('#modalChart').textContent = error.message;
   }
@@ -1002,6 +1025,7 @@ document.addEventListener('click', (event) => {
     state.modal = { kind: tab.dataset.tab, id: tabRun.id };
     writeUrl();
     if (tab.dataset.tab === 'artifacts') showArtifacts(tabRun, { remember: false });
+    else if (tab.dataset.tab === 'logs') showLogs(tabRun);
     else showSubflows([tabRun], '', { remember: false });
     return;
   }
