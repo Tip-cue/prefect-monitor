@@ -1540,6 +1540,9 @@ test('artifacts: markdown and tables render, and text is escaped', async () => {
   assert.match(md, /<ul><li><a href="https:\/\/a.b"/);
   const table = artifactHtml({ type: 'table', data: JSON.stringify([{ a: 1, b: '<x>' }]) });
   assert.match(table, /<th>a<\/th><th>b<\/th>.*<td>1<\/td><td>&lt;x&gt;<\/td>/);
+  const links = artifactHtml({ type: 'table', data: JSON.stringify([{ q: '[s1](https://a.b/q)', j: '[x](javascript:alert(1))' }]) });
+  assert.match(links, /<td><a href="https:\/\/a.b\/q" target="_blank" rel="noopener">s1<\/a><\/td>/);
+  assert.match(links, /<td>\[x\]\(javascript:alert\(1\)\)<\/td>/);
 });
 
 test('artifacts: a key published twice shows once, oldest key first', async () => {
