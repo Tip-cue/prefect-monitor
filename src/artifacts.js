@@ -3,7 +3,8 @@
  * of row objects; anything else (link, result, progress) is shown as its raw data.
  *
  * The markdown is the small subset flows actually write: headings, bold, `code`, links,
- * bullets, paragraphs. Everything is escaped first, so artifact text can't inject markup.
+ * bullets, paragraphs — and, inside a table cell, bold, `code` and links. Everything is
+ * escaped first, so artifact text can't inject markup.
  */
 
 import { escapeHtml } from './render.js';
@@ -39,8 +40,9 @@ function tableHtml(rows) {
   if (!Array.isArray(rows) || rows.length === 0) return '<p class="muted">empty table</p>';
   const columns = Object.keys(rows[0]);
   const head = columns.map((column) => `<th>${escapeHtml(column)}</th>`).join('');
+  // A cell is markdown, as in Prefect's own table: flows put links there (a query, a run).
   const body = rows.map((row) => `<tr>${columns.map((column) => (
-    `<td>${escapeHtml(row[column] ?? '')}</td>`)).join('')}</tr>`).join('');
+    `<td>${inline(String(row[column] ?? ''))}</td>`)).join('')}</tr>`).join('');
   return `<div class="artifact-table"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
